@@ -3009,10 +3009,32 @@ export default function Home() {
       className={[
         "pos-shell",
         deviceInfo ? `device-${deviceInfo.kind}` : "device-unknown",
+        deviceInfo ? `orientation-${deviceInfo.orientation}` : "orientation-unknown",
+        activeTenant && activeUser && !isAdminPortal ? "cash-layout-active" : "",
         deviceInfo?.touch ? "touch-device" : "pointer-device",
         deviceInfo?.standalone ? "installed-app" : "browser-app",
       ].join(" ")}
     >
+      <aside className="orientation-guard" aria-label="Querformat-Hinweis">
+        <div className="orientation-card">
+          <Image
+            alt=""
+            aria-hidden="true"
+            height={88}
+            src="/opa-peters-logo.png"
+            width={88}
+          />
+          <div>
+            <p className="eyebrow">Querformat empfohlen</p>
+            <h1>Bitte iPad drehen</h1>
+            <p>
+              Die Kasse ist fuer schnelle Bedienung im Querformat optimiert.
+              Drehe das Geraet, damit Artikel, Warenkorb und Zahlung gleichzeitig
+              sichtbar sind.
+            </p>
+          </div>
+        </div>
+      </aside>
       {!activeTenant ? (
         <section className="portal-screen" aria-label="Unternehmensanmeldung">
           <div className="portal-panel">
@@ -3142,12 +3164,21 @@ export default function Home() {
         {!isAdminPortal ? (
           <button
             aria-expanded={cashMenuOpen}
+            aria-label={cashMenuOpen ? "Bereichsmenü schließen" : "Bereichsmenü öffnen"}
             className="cash-menu-toggle"
             onClick={() => setCashMenuOpen((isOpen) => !isOpen)}
             type="button"
           >
-            {cashMenuOpen ? "Menü schließen" : "Menü"}
+            {cashMenuOpen ? "Bereiche schließen" : "Bereiche"}
           </button>
+        ) : null}
+        {!isAdminPortal && activeUser ? (
+          <div className="cash-user-chip" aria-label="Aktiver Kassenbenutzer">
+            <span>{activeUser.username}</span>
+            <button className="logout-button" onClick={logoutUser} type="button">
+              Logout
+            </button>
+          </div>
         ) : null}
         {isAdminPortal || cashMenuOpen ? (
         <div className={isAdminPortal ? "status-line" : "status-line cash-toolbar-panel"}>
@@ -3178,14 +3209,6 @@ export default function Home() {
               <strong>Admin</strong>
               <button className="logout-button" onClick={logoutTenant} type="button">
                 Verlassen
-              </button>
-            </div>
-          ) : activeUser ? (
-            <div className="user-switch">
-              <span>Benutzer</span>
-              <strong>{activeUser.username}</strong>
-              <button className="logout-button" onClick={logoutUser} type="button">
-                Logout
               </button>
             </div>
           ) : null}

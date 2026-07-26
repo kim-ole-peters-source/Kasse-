@@ -85,6 +85,10 @@ button:disabled {
     max(14px, env(safe-area-inset-left));
 }
 
+.orientation-guard {
+  display: none;
+}
+
 .portal-screen {
   align-items: center;
   background:
@@ -2214,6 +2218,56 @@ h3 {
   background: rgba(18, 24, 35, 0.5);
 }
 
+@media (orientation: portrait) {
+  body {
+    overflow: hidden;
+  }
+
+  .orientation-guard {
+    align-items: center;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(241, 243, 246, 0.98)),
+      #f1f3f6;
+    display: grid;
+    inset: 0;
+    justify-items: center;
+    padding:
+      max(22px, env(safe-area-inset-top))
+      max(18px, env(safe-area-inset-right))
+      max(22px, env(safe-area-inset-bottom))
+      max(18px, env(safe-area-inset-left));
+    position: fixed;
+    text-align: center;
+    z-index: 1000;
+  }
+
+  .orientation-card {
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid rgba(23, 23, 23, 0.08);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: grid;
+    gap: 16px;
+    max-width: min(460px, calc(100vw - 36px));
+    padding: clamp(20px, 5vw, 34px);
+  }
+
+  .orientation-card img {
+    background: #000000;
+    border-radius: var(--radius);
+    justify-self: center;
+    object-fit: contain;
+    padding: 8px;
+  }
+
+  .orientation-card p:last-child {
+    color: var(--muted);
+    line-height: 1.45;
+    margin-top: 8px;
+  }
+}
+
 @media (max-width: 1180px) and (min-width: 861px) {
   .topbar {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -2445,12 +2499,29 @@ h3 {
 
 .cash-topbar {
   gap: 8px 10px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   padding: 8px 10px;
+}
+
+.cash-layout-active {
+  display: grid;
+  gap: 8px;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.cash-layout-active .cash-topbar {
+  position: relative;
+  top: auto;
 }
 
 .cash-topbar .topbar-brand {
   gap: 8px;
+  min-width: 0;
 }
 
 .cash-topbar .topbar-logo {
@@ -2473,6 +2544,11 @@ h3 {
   white-space: nowrap;
 }
 
+.cash-menu-toggle,
+.cash-user-chip {
+  min-height: 42px;
+}
+
 .cash-menu-toggle {
   align-items: center;
   background: #171717;
@@ -2482,7 +2558,6 @@ h3 {
   display: inline-flex;
   font-weight: 900;
   justify-content: center;
-  min-height: 42px;
   padding: 0 14px;
 }
 
@@ -2496,6 +2571,26 @@ h3 {
   content: "^";
 }
 
+.cash-user-chip {
+  align-items: center;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+}
+
+.cash-user-chip span {
+  font-size: 12px;
+  font-weight: 900;
+  padding-left: 8px;
+}
+
+.cash-user-chip .logout-button {
+  min-height: 34px;
+}
+
 .cash-topbar-closed .cash-toolbar-panel {
   display: none !important;
 }
@@ -2504,25 +2599,167 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.cash-topbar .status-line.cash-toolbar-panel {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 6px;
+  justify-content: flex-end;
+  white-space: normal;
+}
+
+.cash-topbar .status-line.cash-toolbar-panel > span {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--foreground);
+  font-weight: 800;
+  min-height: 28px;
+  padding: 5px 8px;
+}
+
 .cash-topbar .mode-tabs {
   justify-self: stretch;
   min-width: 0;
   width: 100%;
 }
 
+.cash-topbar .mode-tabs button {
+  font-weight: 900;
+  min-height: 36px;
+}
+
 .cash-topbar + .workspace {
-  margin-top: 8px;
-  min-height: calc(100dvh - 84px);
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns:
+    clamp(118px, 13vw, 170px)
+    minmax(0, 1fr)
+    clamp(300px, 29vw, 370px);
+  height: 100%;
+  margin-top: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cash-topbar + .workspace .screen-rail,
+.cash-topbar + .workspace .menu-area,
+.cash-topbar + .workspace .report-area,
+.cash-topbar + .workspace .cart-panel {
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+}
+
+.cash-topbar + .workspace .screen-rail {
+  overflow: auto;
+}
+
+.cash-topbar + .workspace .menu-area,
+.cash-topbar + .workspace .cart-panel {
+  overflow: hidden;
+}
+
+.cash-topbar + .workspace .report-area {
+  overflow: auto;
+}
+
+.cash-topbar + .workspace .product-grid,
+.cash-topbar + .workspace .option-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 2px;
 }
 
 .cash-topbar + .workspace .cart-panel {
-  max-height: calc(100dvh - 84px);
-  min-height: calc(100dvh - 84px);
-  top: 64px;
+  top: auto;
+}
+
+.cash-topbar + .workspace .cart-lines {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.cash-topbar + .workspace .cart-header {
+  align-items: center;
+  flex-direction: row;
+  gap: 10px;
+}
+
+.cash-topbar + .workspace .cart-header h2 {
+  font-size: clamp(22px, 2vw, 26px);
+}
+
+.cash-topbar + .workspace .cart-lines {
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.cash-topbar + .workspace .totals {
+  gap: 6px;
+  margin: 9px 0;
+  padding: 10px 0;
+}
+
+.cash-topbar + .workspace .grand-total {
+  font-size: 16px;
+  padding-top: 4px;
+}
+
+.cash-topbar + .workspace .payment-box {
+  gap: 8px;
+}
+
+.cash-topbar + .workspace .payment-plan {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 10px;
+}
+
+.cash-topbar + .workspace .payment-plan div {
+  display: grid;
+  gap: 2px;
+}
+
+.cash-topbar + .workspace .split-inputs {
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cash-topbar + .workspace .cash-input {
+  grid-template-columns: 1fr;
+}
+
+.cash-topbar + .workspace .cash-input input {
+  grid-column: auto;
+}
+
+.cash-topbar + .workspace .complete-button {
+  font-size: 15px;
+  min-height: 48px;
+}
+
+.cash-topbar + .workspace .payment-box,
+.cash-topbar + .workspace .totals,
+.cash-topbar + .workspace .adjustments {
+  flex: 0 0 auto;
+}
+
+@media (orientation: landscape) {
+  body {
+    overflow: hidden;
+  }
 }
 
 @media (orientation: landscape) and (max-height: 820px) {
   .pos-shell {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
     padding: 6px;
   }
 
@@ -2536,24 +2773,28 @@ h3 {
 
   .cash-topbar {
     padding: 6px 8px;
-    top: 4px;
+    top: auto;
   }
 
   .cash-topbar .topbar-logo {
     display: none;
   }
 
-  .cash-menu-toggle {
+  .cash-menu-toggle,
+  .cash-user-chip {
     min-height: 38px;
+  }
+
+  .cash-menu-toggle {
     padding: 0 12px;
   }
 
   .cash-topbar + .workspace {
-    display: grid;
     gap: 8px;
-    grid-template-columns: minmax(118px, 150px) minmax(0, 1fr) minmax(280px, 340px);
-    margin-top: 8px;
-    min-height: calc(100dvh - 56px);
+    grid-template-columns:
+      clamp(112px, 12vw, 150px)
+      minmax(0, 1fr)
+      clamp(286px, 29vw, 340px);
   }
 
   .cash-topbar + .workspace .screen-rail,
@@ -2564,8 +2805,6 @@ h3 {
 
   .cash-topbar + .workspace .screen-rail {
     display: flex;
-    max-height: calc(100dvh - 56px);
-    overflow: auto;
   }
 
   .cash-topbar + .workspace .rail-title,
@@ -2577,11 +2816,6 @@ h3 {
     font-size: 12px;
     min-height: 38px;
     padding: 0 8px;
-  }
-
-  .cash-topbar + .workspace .menu-area {
-    max-height: calc(100dvh - 56px);
-    overflow: hidden;
   }
 
   .cash-topbar + .workspace .menu-toolbar {
@@ -2617,12 +2851,9 @@ h3 {
 
   .cash-topbar + .workspace .product-grid,
   .cash-topbar + .workspace .option-grid {
-    flex: 1;
     gap: 8px;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     margin-top: 8px;
-    min-height: 0;
-    overflow: auto;
   }
 
   .cash-topbar + .workspace .product-button,
@@ -2638,14 +2869,6 @@ h3 {
 
   .cash-topbar + .workspace .button-meta {
     display: none;
-  }
-
-  .cash-topbar + .workspace .cart-panel {
-    max-height: calc(100dvh - 56px);
-    min-height: calc(100dvh - 56px);
-    overflow: hidden;
-    position: sticky;
-    top: 50px;
   }
 
   .cash-topbar + .workspace .cart-header {
@@ -2668,11 +2891,8 @@ h3 {
   }
 
   .cash-topbar + .workspace .cart-lines {
-    flex: 1 1 60px;
     gap: 6px;
     margin: 6px 0;
-    min-height: 0;
-    overflow: auto;
   }
 
   .cash-topbar + .workspace .cart-line {
@@ -2686,11 +2906,11 @@ h3 {
   }
 
   .cash-topbar + .workspace .qty-controls {
-    grid-template-columns: 30px 28px 30px;
+    grid-template-columns: 32px 26px 32px;
   }
 
   .cash-topbar + .workspace .qty-controls button {
-    height: 30px;
+    height: 32px;
   }
 
   .cash-topbar + .workspace .adjustments {
@@ -2770,24 +2990,35 @@ h3 {
   }
 }
 
-@media (orientation: landscape) and (max-height: 560px) {
+@media (orientation: landscape) and (max-height: 680px) {
+  .cash-topbar {
+    gap: 5px;
+  }
+
   .cash-topbar h1 {
     font-size: 16px;
   }
 
+  .cash-topbar .status-line.cash-toolbar-panel {
+    display: none;
+  }
+
+  .cash-user-chip span {
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .cash-topbar + .workspace {
-    grid-template-columns: 112px minmax(0, 1fr) minmax(270px, 318px);
-    min-height: calc(100dvh - 50px);
+    gap: 6px;
+    grid-template-columns: 104px minmax(0, 1fr) minmax(272px, 304px);
   }
 
   .cash-topbar + .workspace .screen-rail,
   .cash-topbar + .workspace .menu-area,
   .cash-topbar + .workspace .cart-panel {
-    max-height: calc(100dvh - 50px);
-  }
-
-  .cash-topbar + .workspace .cart-panel {
-    min-height: calc(100dvh - 50px);
+    padding: 6px;
   }
 
   .cash-topbar + .workspace .menu-toolbar h2,
@@ -2795,9 +3026,47 @@ h3 {
     display: none;
   }
 
+  .cash-topbar + .workspace .search-box {
+    min-width: 0;
+  }
+
   .cash-topbar + .workspace .product-button,
   .touch-device .cash-topbar + .workspace .product-button {
     min-height: 66px;
+    padding: 8px;
+  }
+
+  .cash-topbar + .workspace .cart-header h2 {
+    font-size: 20px;
+  }
+
+  .cash-topbar + .workspace .cart-lines {
+    margin: 4px 0;
+  }
+
+  .cash-topbar + .workspace .cart-line {
+    padding: 5px;
+  }
+
+  .cash-topbar + .workspace .adjustments {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cash-topbar + .workspace .adjustments label:first-child {
+    display: none;
+  }
+
+  .cash-topbar + .workspace .payment-plan,
+  .cash-topbar + .workspace .totals {
+    padding: 5px 7px;
+  }
+
+  .cash-topbar + .workspace .split-inputs {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cash-topbar + .workspace .complete-button {
+    min-height: 40px;
   }
 }
 
