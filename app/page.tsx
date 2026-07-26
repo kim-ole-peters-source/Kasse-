@@ -182,6 +182,8 @@ type ReceiptConfig = {
   printerProfile: PrinterProfile;
   printerCommandSet: PrinterCommandSet;
   cutAfterPrint: boolean;
+  autoPrintOnSale: boolean;
+  autoOpenDrawer: boolean;
 };
 
 type BluetoothWritableCharacteristic = {
@@ -205,7 +207,10 @@ type BluetoothDeviceLike = {
   name?: string;
   gatt?: {
     connect(): Promise<BluetoothServerLike>;
+    disconnect?: () => void;
   };
+  addEventListener?: (type: "gattserverdisconnected", listener: () => void) => void;
+  removeEventListener?: (type: "gattserverdisconnected", listener: () => void) => void;
 };
 
 type BluetoothLike = {
@@ -238,10 +243,18 @@ const STORAGE_DISCOUNTS = "peters-kasse-discounts-v1";
 const STORAGE_USERS = "peters-kasse-users-v1";
 const STORAGE_ADMIN_PASSWORD = "peters-kasse-admin-password-v1";
 const SYSTEM_SKUS = new Set(["FT1", "FT2", "MSG0", "MSG1", "MSG2"]);
+// Bekannte GATT-Service-UUIDs verbreiteter BLE-Bon-/ESC-POS-Drucker
+// (u.a. HM-10/BLE-UART-Module, Microchip RN4870/BM series, generische
+// "Printer Service"-UUIDs vieler China-Thermodrucker sowie Star mC-Print).
 const BLUETOOTH_PRINTER_SERVICES = [
   "0000ffe0-0000-1000-8000-00805f9b34fb",
   "0000ff00-0000-1000-8000-00805f9b34fb",
   "49535343-fe7d-4ae5-8fa9-9fafd205e455",
+  "49535343-8841-43f4-a8d4-ecbe34729bb3",
+  "000018f0-0000-1000-8000-00805f9b34fb",
+  "e7810a71-73ae-499d-8c15-faa9aef0c3f2",
+  "0000fee7-0000-1000-8000-00805f9b34fb",
+  "0000fff0-0000-1000-8000-00805f9b34fb",
 ];
 
 const DEFAULT_RECEIPT_CONFIG: ReceiptConfig = {
@@ -255,6 +268,8 @@ const DEFAULT_RECEIPT_CONFIG: ReceiptConfig = {
   printerProfile: "star-mcprint",
   printerCommandSet: "escpos",
   cutAfterPrint: true,
+  autoPrintOnSale: true,
+  autoOpenDrawer: true,
 };
 
 const ADMIN_SECTIONS: { id: AdminSection; label: string }[] = [
@@ -1157,6 +1172,39 @@ function buildPrinterPayload(text: string, config: ReceiptConfig) {
   return concatBytes([init, body, feed, cut]);
 }
 
+// Kassenschublade oeffnen (Drawer-Kick). Die meisten Bondrucker geben den
+// Impuls fuer die Schublade ueber den RJ11/RJ12-Anschluss am Drucker weiter,
+// sobald der Drucker diese Sequenz erhaelt - unabhaengig davon, ob danach
+// tatsaechlich gedruckt wird.
+function buildDrawerKickPayload(config: ReceiptConfig) {
+  if (config.printerCommandSet === "star") {
+    // Star StarPRNT/StarLine-Echtzeitbefehl: DLE DC4 n m t
+    return Uint8Array.from([0x10, 0x14, 0x01, 0x00, 0x05]);
+  }
+
+  // ESC/POS-Standardbefehl (auch von Star-Druckern im ESC/POS-Emulationsmodus
+  // unterstuetzt): ESC p m t1 t2
+  return Uint8Array.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
+}
+
+function isWebBluetoothUnavailableOnPlatform() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const nav = navigator as Navigator & { standalone?: boolean };
+  const userAgent = nav.userAgent.toLowerCase();
+  const isIPad =
+    /ipad/.test(userAgent) ||
+    (nav.platform === "MacIntel" && nav.maxTouchPoints > 1);
+  const isIPhoneOrIPod = /iphone|ipod/.test(userAgent);
+
+  // Jeder Browser unter iOS/iPadOS (Safari, Chrome, Edge ...) basiert auf
+  // WebKit und unterstuetzt daher kein Web-Bluetooth - unabhaengig vom
+  // gewaehlten Browser. Das ist eine Plattform-Einschraenkung von Apple.
+  return isIPad || isIPhoneOrIPod;
+}
+
 function buildReceiptText(transaction: Transaction, config: ReceiptConfig) {
   const width = receiptWidthChars(config.widthMm);
   const lines: string[] = [];
@@ -1236,8 +1284,16 @@ export default function Home() {
   const [receiptConfigLoaded, setReceiptConfigLoaded] = useState(false);
   const [printerCharacteristic, setPrinterCharacteristic] =
     useState<BluetoothWritableCharacteristic | null>(null);
+  const [printerDevice, setPrinterDevice] = useState<BluetoothDeviceLike | null>(
+    null,
+  );
   const [printerDeviceName, setPrinterDeviceName] = useState("");
   const [printerStatus, setPrinterStatus] = useState("Kein Drucker verbunden");
+  const [printerConnecting, setPrinterConnecting] = useState(false);
+  const bluetoothUnsupportedOnDevice = useMemo(
+    () => isWebBluetoothUnavailableOnPlatform(),
+    [],
+  );
   const [currentScreen, setCurrentScreen] = useState("Menü");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [query, setQuery] = useState("");
@@ -1769,6 +1825,23 @@ export default function Home() {
     setVoucherAmount("");
     setCashReceived("");
     setNotice(`Bon ${transaction.id} abgeschlossen`);
+
+    if (printerCharacteristic) {
+      // Bluetooth-Drucker verbunden: Bon (falls gewuenscht) und
+      // Kassenschublade automatisch ansteuern.
+      if (receiptConfig.autoPrintOnSale) {
+        printReceiptBluetooth(transaction);
+      }
+      if (receiptConfig.autoOpenDrawer) {
+        openCashDrawer();
+      }
+    } else if (receiptConfig.autoPrintOnSale) {
+      // Kein Bluetooth-Drucker verbunden (z.B. iPad): automatisch den
+      // System-Druckdialog öffnen, sobald der Bon im DOM gerendert ist.
+      // Ein daran angeschlossener Bondrucker mit Schublade oeffnet diese
+      // in der Regel selbststaendig beim Druckvorgang/Schneiden.
+      window.setTimeout(() => window.print(), 300);
+    }
   }
 
   function importCatalog(event: ChangeEvent<HTMLInputElement>) {
@@ -2254,29 +2327,53 @@ export default function Home() {
     );
   }
 
+  function handlePrinterDisconnected() {
+    setPrinterCharacteristic(null);
+    setPrinterDevice(null);
+    setPrinterDeviceName("");
+    setPrinterStatus("Bluetooth-Drucker getrennt");
+  }
+
   async function connectBluetoothPrinter() {
+    if (bluetoothUnsupportedOnDevice) {
+      setPrinterStatus(
+        "iPad/iPhone (Safari, Chrome & Co. unter iOS) unterstützen kein Web-Bluetooth – das ist eine Einschränkung von Apple, kein Fehler in der Kasse. Bitte einen AirPrint-fähigen Bondrucker im WLAN verwenden (Button „Bon drucken“ öffnet den Systemdruck-Dialog) oder die Kassenschublade direkt per Kabel am Drucker anschließen – sie öffnet dann automatisch beim Bondruck.",
+      );
+      return;
+    }
+
     const bluetooth = (navigator as Navigator & { bluetooth?: BluetoothLike })
       .bluetooth;
 
     if (!bluetooth) {
       setPrinterStatus(
-        "Bluetooth-Druck wird von diesem Browser nicht unterstützt. Browserdruck bleibt verfügbar.",
+        "Bluetooth-Druck wird von diesem Browser nicht unterstützt. Bitte Chrome oder Edge verwenden, oder Browserdruck (Bon drucken) nutzen.",
       );
       return;
     }
 
+    setPrinterConnecting(true);
     try {
-      setPrinterStatus("Drucker auswählen");
+      setPrinterStatus("Drucker auswählen …");
       const device = await bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices: BLUETOOTH_PRINTER_SERVICES,
       });
+
+      device.addEventListener?.("gattserverdisconnected", handlePrinterDisconnected);
+
       const server = await device.gatt?.connect();
       if (!server) {
-        throw new Error("Keine Bluetooth-GATT-Verbindung");
+        throw new Error("Keine Bluetooth-GATT-Verbindung möglich");
       }
 
       const services = await server.getPrimaryServices();
+      if (services.length === 0) {
+        throw new Error(
+          "Am Drucker wurden keine Bluetooth-Dienste gefunden. Bitte pruefen, ob der Drucker eingeschaltet und im Kopplungsmodus ist.",
+        );
+      }
+
       for (const service of services) {
         const characteristics = await service.getCharacteristics();
         const writable = characteristics.find(
@@ -2287,50 +2384,95 @@ export default function Home() {
 
         if (writable) {
           setPrinterCharacteristic(writable);
+          setPrinterDevice(device);
           setPrinterDeviceName(device.name || "Bluetooth-Drucker");
           setPrinterStatus("Bluetooth-Drucker verbunden");
           return;
         }
       }
 
-      setPrinterStatus("Kein beschreibbarer Druckkanal gefunden");
+      setPrinterStatus(
+        "Verbunden, aber kein beschreibbarer Druckkanal gefunden. Dieser Drucker ist vermutlich ein klassischer Bluetooth-SPP-Drucker – diese werden von Web-Bluetooth nicht unterstützt. Bitte einen BLE/ESC-POS-fähigen Drucker verwenden oder Browserdruck nutzen.",
+      );
     } catch (error) {
       setPrinterCharacteristic(null);
+      setPrinterDevice(null);
       setPrinterDeviceName("");
       setPrinterStatus(
         error instanceof Error
           ? `Bluetooth-Verbindung fehlgeschlagen: ${error.message}`
           : "Bluetooth-Verbindung fehlgeschlagen",
       );
+    } finally {
+      setPrinterConnecting(false);
+    }
+  }
+
+  function disconnectBluetoothPrinter() {
+    printerDevice?.gatt?.disconnect?.();
+    handlePrinterDisconnected();
+  }
+
+  async function writeToPrinter(payload: Uint8Array) {
+    if (!printerCharacteristic) {
+      setPrinterStatus("Bitte zuerst einen Bluetooth-Drucker verbinden");
+      return false;
+    }
+
+    try {
+      for (let offset = 0; offset < payload.length; offset += 180) {
+        const chunk = payload.slice(offset, offset + 180);
+        if (printerCharacteristic.writeValueWithoutResponse) {
+          await printerCharacteristic.writeValueWithoutResponse(chunk);
+        } else {
+          await printerCharacteristic.writeValue(chunk);
+        }
+      }
+      return true;
+    } catch (error) {
+      setPrinterStatus(
+        error instanceof Error
+          ? `Übertragung an Drucker fehlgeschlagen: ${error.message}`
+          : "Übertragung an Drucker fehlgeschlagen",
+      );
+      return false;
     }
   }
 
   async function writeBluetoothPrint(text: string) {
-    if (!printerCharacteristic) {
-      setPrinterStatus("Bitte zuerst einen Bluetooth-Drucker verbinden");
-      return;
-    }
-
     const payload = buildPrinterPayload(text, receiptConfig);
+    const ok = await writeToPrinter(payload);
 
-    for (let offset = 0; offset < payload.length; offset += 180) {
-      const chunk = payload.slice(offset, offset + 180);
-      if (printerCharacteristic.writeValueWithoutResponse) {
-        await printerCharacteristic.writeValueWithoutResponse(chunk);
-      } else {
-        await printerCharacteristic.writeValue(chunk);
-      }
+    if (ok) {
+      setPrinterStatus(
+        `Druckauftrag gesendet (${receiptConfig.widthMm} mm, ${
+          receiptConfig.printerCommandSet === "star" ? "Star" : "ESC/POS"
+        })`,
+      );
     }
 
-    setPrinterStatus(
-      `Druckauftrag gesendet (${receiptConfig.widthMm} mm, ${
-        receiptConfig.printerCommandSet === "star" ? "Star" : "ESC/POS"
-      })`,
-    );
+    return ok;
   }
 
   async function printReceiptBluetooth(transaction: Transaction) {
-    await writeBluetoothPrint(buildReceiptText(transaction, receiptConfig));
+    return writeBluetoothPrint(buildReceiptText(transaction, receiptConfig));
+  }
+
+  async function openCashDrawer() {
+    if (!printerCharacteristic) {
+      setPrinterStatus(
+        bluetoothUnsupportedOnDevice
+          ? "Kassenschublade kann auf dem iPad nicht per Bluetooth angesteuert werden. Die Schublade am Bondrucker öffnet sich automatisch, sobald über diesen Drucker gedruckt wird (Kabel an Drucker anschließen)."
+          : "Bitte zuerst einen Bluetooth-Drucker verbinden, um die Kassenschublade zu öffnen",
+      );
+      return false;
+    }
+
+    const ok = await writeToPrinter(buildDrawerKickPayload(receiptConfig));
+    if (ok) {
+      setPrinterStatus("Kassenschublade geöffnet");
+    }
+    return ok;
   }
 
   async function printBluetoothTest() {
@@ -3485,6 +3627,32 @@ export default function Home() {
                     />
                     Bon nach Druck schneiden
                   </label>
+                  <label className="checkbox-field">
+                    <input
+                      checked={receiptConfig.autoPrintOnSale}
+                      onChange={(event) =>
+                        setReceiptConfig({
+                          ...receiptConfig,
+                          autoPrintOnSale: event.target.checked,
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    Bon bei jedem Verkauf automatisch erzeugen/drucken
+                  </label>
+                  <label className="checkbox-field">
+                    <input
+                      checked={receiptConfig.autoOpenDrawer}
+                      onChange={(event) =>
+                        setReceiptConfig({
+                          ...receiptConfig,
+                          autoOpenDrawer: event.target.checked,
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    Kassenschublade bei jedem Verkauf automatisch öffnen
+                  </label>
                 </div>
                 <div className="admin-target">
                   {
@@ -3512,8 +3680,19 @@ export default function Home() {
                   <strong>{printerDeviceName || printerStatus}</strong>
                 </div>
                 <div className="report-actions">
-                  <button onClick={connectBluetoothPrinter} type="button">
-                    Bluetooth verbinden
+                  <button
+                    disabled={printerConnecting}
+                    onClick={connectBluetoothPrinter}
+                    type="button"
+                  >
+                    {printerConnecting ? "Verbinde …" : "Bluetooth verbinden"}
+                  </button>
+                  <button
+                    disabled={!printerCharacteristic}
+                    onClick={disconnectBluetoothPrinter}
+                    type="button"
+                  >
+                    Trennen
                   </button>
                   <button
                     disabled={!printerCharacteristic}
@@ -3522,12 +3701,32 @@ export default function Home() {
                   >
                     Testdruck
                   </button>
+                  <button
+                    disabled={!printerCharacteristic}
+                    onClick={openCashDrawer}
+                    type="button"
+                  >
+                    Kassenschublade öffnen
+                  </button>
                 </div>
-                <p className="admin-note">
-                  Web-Bluetooth funktioniert vorerst mit kompatiblen BLE/ESC-POS
-                  Druckern. Klassische Bluetooth-SPP-Drucker brauchen spaeter
-                  eine native Bridge oder Hersteller-SDK.
-                </p>
+                {bluetoothUnsupportedOnDevice ? (
+                  <p className="admin-note warning">
+                    Dieses iPad/iPhone unterstützt kein Web-Bluetooth (Einschränkung
+                    von Apple/WebKit, betrifft alle Browser unter iOS). Für Druck
+                    und Kassenschublade bitte einen AirPrint-fähigen Bondrucker im
+                    selben WLAN einrichten: Der Button „Bon drucken“ öffnet den
+                    Systemdruck-Dialog des iPads. Die Kassenschublade per Kabel am
+                    Drucker anschließen – sie öffnet in der Regel automatisch beim
+                    Bondruck.
+                  </p>
+                ) : (
+                  <p className="admin-note">
+                    Web-Bluetooth funktioniert mit kompatiblen BLE/ESC-POS-Druckern
+                    (z. B. Star mC-Print im BLE-Modus). Klassische
+                    Bluetooth-SPP-Drucker ohne BLE-Profil werden vom Browser nicht
+                    unterstützt – hier hilft Browserdruck oder ein LAN/AirPrint-Weg.
+                  </p>
+                )}
                 <p className="admin-note warning">
                   Der TSE-Stempel ist nur eine Simulation und nicht rechtssicher.
                   Die echte TSE-Schnittstelle kann spaeter an derselben Stelle
@@ -3866,6 +4065,13 @@ export default function Home() {
               </button>
               <button onClick={() => window.print()} type="button">
                 Bon drucken
+              </button>
+              <button
+                disabled={!printerCharacteristic}
+                onClick={openCashDrawer}
+                type="button"
+              >
+                Kassenschublade öffnen
               </button>
               <button onClick={() => setLastReceipt(null)} type="button">
                 Schließen
