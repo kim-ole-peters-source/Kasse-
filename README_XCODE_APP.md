@@ -55,6 +55,27 @@ npm run ios:open
 
 3. In Xcode oben ein iPad oder iPhone auswaehlen und auf Play druecken.
 
+## Direkt mit iOS 26.5 Simulator bauen
+
+Auf diesem Mac ist Xcode 26.6 mit iOS 26.5 Simulator installiert. Fuer den
+direkten Build ohne manuelle Geraeteauswahl:
+
+```bash
+cd /Users/kimolepeters/Documents/Codex/2026-07-26/kan
+npm run ios:sync:local
+npm run ios:build:sim26
+```
+
+Wenn die App auch direkt im Simulator installiert und gestartet werden soll:
+
+```bash
+npm run ios:run:sim26
+```
+
+Das Skript sucht automatisch ein iOS-26.5-Geraet und bevorzugt ein iPad Pro
+13-inch (M5). Wenn Xcode trotzdem kein Ziel anzeigt, in Xcode oben neben `App`
+einen Simulator mit `iOS 26.5` auswaehlen.
+
 ## Auf echtem iPad/iPhone testen
 
 Ein echtes Geraet kann `localhost` deines Macs nicht erreichen. Nutze die

@@ -15,7 +15,9 @@
     "ios:add": "CAPACITOR_SERVER_URL=http://localhost:3008 cap add ios",
     "ios:sync:local": "npm run build && CAPACITOR_SERVER_URL=http://localhost:3008 cap sync ios",
     "ios:sync:prod": "npm run build && CAPACITOR_SERVER_URL=https://kcpremium.de cap sync ios",
-    "ios:open": "cap open ios"
+    "ios:open": "cap open ios",
+    "ios:build:sim26": "node scripts/ios-26-5-simulator.mjs build",
+    "ios:run:sim26": "node scripts/ios-26-5-simulator.mjs run"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.2",

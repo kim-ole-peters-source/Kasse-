@@ -1471,6 +1471,7 @@ export default function Home() {
   const [journalLoaded, setJournalLoaded] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<Transaction | null>(null);
   const [mode, setMode] = useState<"sale" | "report" | "admin">("sale");
+  const [cashMenuOpen, setCashMenuOpen] = useState(false);
   const [notice, setNotice] = useState("Bitte Unternehmen anmelden");
   const [now, setNow] = useState<Date | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
@@ -2016,6 +2017,7 @@ export default function Home() {
     setVoucherAmount("");
     setCashReceived("");
     setLastReceipt(null);
+    setCashMenuOpen(false);
   }
 
   function loginTenant() {
@@ -3106,7 +3108,13 @@ export default function Home() {
         </section>
       ) : activeUser || isAdminPortal ? (
         <>
-      <header className="topbar">
+      <header
+        className={
+          isAdminPortal
+            ? "topbar"
+            : `topbar cash-topbar ${cashMenuOpen ? "cash-topbar-open" : "cash-topbar-closed"}`
+        }
+      >
         <div className="topbar-brand">
           <Image
             alt=""
@@ -3118,7 +3126,11 @@ export default function Home() {
           />
           <div>
             <p className="eyebrow">
-              {isAdminPortal ? "Verwaltung" : "Kassenbereich"}
+              {isAdminPortal
+                ? "Verwaltung"
+                : `${mode === "sale" ? "Verkauf" : "Tagesabschluss"} · ${
+                    activeUser?.username ?? "Kasse"
+                  }`}
             </p>
             <h1>
               {isAdminPortal
@@ -3127,7 +3139,17 @@ export default function Home() {
             </h1>
           </div>
         </div>
-        <div className="status-line">
+        {!isAdminPortal ? (
+          <button
+            aria-expanded={cashMenuOpen}
+            className="cash-menu-toggle"
+            onClick={() => setCashMenuOpen((isOpen) => !isOpen)}
+            type="button"
+          >
+            {cashMenuOpen ? "Menü schließen" : "Menü"}
+          </button>
+        ) : null}
+        <div className={isAdminPortal ? "status-line" : "status-line cash-toolbar-panel"}>
           <span>
             {now
               ? now.toLocaleString("de-DE", {
@@ -3168,10 +3190,13 @@ export default function Home() {
           ) : null}
         </div>
         {!isAdminPortal ? (
-          <div className="mode-tabs" aria-label="Arbeitsbereich">
+          <div className="mode-tabs cash-toolbar-panel" aria-label="Arbeitsbereich">
             <button
               className={mode === "sale" ? "active" : ""}
-              onClick={() => setMode("sale")}
+              onClick={() => {
+                setMode("sale");
+                setCashMenuOpen(false);
+              }}
               type="button"
             >
               Verkauf
@@ -3179,7 +3204,10 @@ export default function Home() {
             <button
               className={mode === "report" ? "active" : ""}
               disabled={!canOpenReports}
-              onClick={() => setMode("report")}
+              onClick={() => {
+                setMode("report");
+                setCashMenuOpen(false);
+              }}
               type="button"
             >
               Tagesabschluss

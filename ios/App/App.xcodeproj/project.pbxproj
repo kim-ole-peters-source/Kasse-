@@ -84,6 +84,7 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				B7E5B2C92D5B4F9A9F0E2651 /* Clear App Bundle Attributes */,
 			);
 			buildRules = (
 			);
@@ -149,6 +150,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B7E5B2C92D5B4F9A9F0E2651 /* Clear App Bundle Attributes */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Clear App Bundle Attributes";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -d \"${TARGET_BUILD_DIR}/${FULL_PRODUCT_NAME}\" ]; then\n  /usr/bin/xattr -cr \"${TARGET_BUILD_DIR}/${FULL_PRODUCT_NAME}\" || true\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		504EC3001FED79650016851F /* Sources */ = {
