@@ -2486,8 +2486,18 @@ h3 {
   padding: 0 14px;
 }
 
+.cash-menu-toggle::after {
+  content: "v";
+  font-size: 13px;
+  margin-left: 8px;
+}
+
+.cash-topbar-open .cash-menu-toggle::after {
+  content: "^";
+}
+
 .cash-topbar-closed .cash-toolbar-panel {
-  display: none;
+  display: none !important;
 }
 
 .cash-topbar-open .cash-toolbar-panel {
@@ -2696,28 +2706,39 @@ h3 {
 
   .cash-topbar + .workspace .totals {
     font-size: 12px;
-    gap: 4px;
-    margin: 6px 0;
-    padding: 8px;
+    gap: 0;
+    margin: 5px 0;
+    padding: 6px 8px;
+  }
+
+  .cash-topbar + .workspace .totals div:not(.grand-total) {
+    display: none;
   }
 
   .cash-topbar + .workspace .grand-total {
+    border-top: 0;
     font-size: 15px;
-    padding-top: 6px;
+    margin: 0;
+    padding-top: 0;
   }
 
   .cash-topbar + .workspace .payment-box {
-    gap: 6px;
+    gap: 5px;
   }
 
   .cash-topbar + .workspace .payment-plan {
     gap: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding: 8px;
+    padding: 6px 8px;
+  }
+
+  .cash-topbar + .workspace .payment-plan div {
+    display: grid;
+    gap: 1px;
   }
 
   .cash-topbar + .workspace .split-inputs {
-    gap: 6px;
+    gap: 5px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2730,7 +2751,7 @@ h3 {
   }
 
   .cash-topbar + .workspace .cash-input button {
-    min-height: 34px;
+    min-height: 32px;
     padding: 0 8px;
   }
 
@@ -2738,9 +2759,14 @@ h3 {
     padding: 6px 8px;
   }
 
+  .cash-topbar + .workspace .change-row {
+    font-size: 13px;
+    min-height: 24px;
+  }
+
   .cash-topbar + .workspace .complete-button {
     font-size: 14px;
-    min-height: 44px;
+    min-height: 42px;
   }
 }
 
@@ -2765,8 +2791,7 @@ h3 {
   }
 
   .cash-topbar + .workspace .menu-toolbar h2,
-  .cash-topbar + .workspace .sale-status-strip,
-  .cash-topbar + .workspace .totals div:nth-child(n + 3):not(.grand-total) {
+  .cash-topbar + .workspace .sale-status-strip {
     display: none;
   }
 

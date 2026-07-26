@@ -3149,6 +3149,7 @@ export default function Home() {
             {cashMenuOpen ? "Menü schließen" : "Menü"}
           </button>
         ) : null}
+        {isAdminPortal || cashMenuOpen ? (
         <div className={isAdminPortal ? "status-line" : "status-line cash-toolbar-panel"}>
           <span>
             {now
@@ -3189,7 +3190,8 @@ export default function Home() {
             </div>
           ) : null}
         </div>
-        {!isAdminPortal ? (
+        ) : null}
+        {!isAdminPortal && cashMenuOpen ? (
           <div className="mode-tabs cash-toolbar-panel" aria-label="Arbeitsbereich">
             <button
               className={mode === "sale" ? "active" : ""}
