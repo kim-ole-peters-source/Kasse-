@@ -1,0 +1,20 @@
+{
+	"appId": "de.kcpremium.peterskasse",
+	"appName": "Peters Kasse",
+	"webDir": "native-fallback",
+	"server": {
+		"url": "http://localhost:3008",
+		"cleartext": true,
+		"allowNavigation": [
+			"kcpremium.de",
+			"*.kcpremium.de",
+			"localhost",
+			"127.0.0.1"
+		]
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"scheme": "PetersKasse"
+	},
+	"packageClassList": []
+}

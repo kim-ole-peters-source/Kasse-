@@ -32,8 +32,10 @@ test("server-renders the POS shell", async () => {
   assert.match(html, /Peters Kasse/i);
   assert.match(html, /Unternehmensanmeldung/i);
   assert.match(html, /Opa Peters Kassensystem/i);
+  assert.match(html, /Kassenbereich/i);
+  assert.match(html, /Adminbereich/i);
   assert.match(html, /Unternehmenskennung/i);
-  assert.match(html, /Unternehmen öffnen/i);
+  assert.match(html, /Kassenbereich öffnen/i);
   assert.match(html, /opa-peters-logo\.png/i);
   assert.match(html, /vom Admin vergeben/i);
   assert.doesNotMatch(html, /opa \/ 1902/i);
@@ -42,7 +44,18 @@ test("server-renders the POS shell", async () => {
 });
 
 test("keeps Lightspeed CSV data available to the app", async () => {
-  const [catalog, screens, users, page, layout, manifest, serviceWorker, logo] =
+  const [
+    catalog,
+    screens,
+    users,
+    page,
+    layout,
+    manifest,
+    serviceWorker,
+    capacitorConfig,
+    nativeFallback,
+    logo,
+  ] =
     await Promise.all([
     readFile(new URL("../public/data/catalog.csv", import.meta.url), "utf8"),
     readFile(new URL("../public/data/screens.csv", import.meta.url), "utf8"),
@@ -51,6 +64,8 @@ test("keeps Lightspeed CSV data available to the app", async () => {
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
+    readFile(new URL("../capacitor.config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../native-fallback/index.html", import.meta.url), "utf8"),
     readFile(new URL("../public/opa-peters-logo.png", import.meta.url)),
   ]);
 
@@ -65,19 +80,24 @@ test("keeps Lightspeed CSV data available to the app", async () => {
   assert.match(page, /loginUser/);
   assert.match(page, /logoutUser/);
   assert.match(page, /loginTenant/);
+  assert.match(page, /PortalArea/);
+  assert.match(page, /isAdminPortal/);
   assert.match(page, /createTenantRegister/);
+  assert.match(page, /exportCatalogTemplate/);
+  assert.match(page, /SAMPLE_PRODUCTS/);
   assert.match(page, /exportTenantBackup/);
   assert.match(page, /importTenantBackup/);
   assert.match(page, /visibleAdminSections/);
   assert.match(page, /DEFAULT_TENANTS/);
   assert.match(page, /Mandanten-Sicherung/);
-  assert.match(page, /leere Musterkasse/);
+  assert.match(page, /Musterkasse mit Beispielprodukten/);
   assert.match(page, /Unternehmenskennung/);
   assert.match(page, /requiresPassword/);
   assert.match(page, /Produkte verwalten/);
   assert.match(page, /Standardprodukt/);
   assert.match(page, /Rabattvorlagen/);
   assert.match(page, /Benutzer & Rechte/);
+  assert.match(page, /Adminbereich öffnen/);
   assert.match(page, /TSE Informationen/);
   assert.match(page, /Star mC-Print2/);
   assert.match(page, /ESC\/POS kompatibel/);
@@ -91,6 +111,11 @@ test("keeps Lightspeed CSV data available to the app", async () => {
   assert.match(layout, /noimageindex/);
   assert.match(layout, /viewportFit/);
   assert.match(manifest, /"display": "standalone"/);
+  assert.match(manifest, /"theme_color": "#171717"/);
   assert.match(serviceWorker, /peters-kasse-app-v1/);
+  assert.match(capacitorConfig, /de\.kcpremium\.peterskasse/);
+  assert.match(capacitorConfig, /CAPACITOR_SERVER_URL/);
+  assert.match(capacitorConfig, /https:\/\/kcpremium\.de/);
+  assert.match(nativeFallback, /App-Huelle ist installiert/);
   assert.ok(logo.byteLength > 1000);
 });

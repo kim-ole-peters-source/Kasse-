@@ -5,7 +5,7 @@
 - Firmen-Login als Startseite mit Opa-Peters-Logo.
 - Standardzugang wird auf der Loginseite nicht mehr offen angezeigt.
 - Firmenverwaltung ist nur noch in der Hauptkasse sichtbar.
-- Neue Firmenkassen starten leer, ohne vorangelegte Produkte.
+- Neue Firmenkassen starten mit drei bearbeitbaren Musterprodukten.
 - Mandanten-Sicherung im Adminbereich: Export und Import aller lokalen Kassen.
 - Suchmaschinen sollen die Seite nicht indexieren (`noindex`).
 

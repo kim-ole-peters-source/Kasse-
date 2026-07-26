@@ -63,6 +63,7 @@ type PaymentSplit = {
   amount: number;
 };
 
+type PortalArea = "cash" | "admin";
 type DeviceKind = "phone" | "tablet" | "desktop";
 type DiscountType = "percent" | "amount";
 type AdminSection = "products" | "discounts" | "users" | "receipts" | "tenants";
@@ -461,6 +462,17 @@ const DEFAULT_ADMIN_PASSWORD = "1902";
 const EMPTY_CATALOG_CSV =
   "SKU,Name,Typ,Warengruppe,Standardpreis,Schaltflächenname,Schaltflächenfarbe,Schaltflächenstil,Menü/Bildschirm\n";
 const EMPTY_SCREENS_CSV = '"SKU","Bildschirm"\n';
+const CATALOG_TEMPLATE_HEADERS = [
+  "SKU",
+  "Name",
+  "Typ",
+  "Warengruppe",
+  "Standardpreis",
+  "Schaltflächenname",
+  "Schaltflächenfarbe",
+  "Schaltflächenstil",
+  "Menü/Bildschirm",
+];
 
 const DEFAULT_TENANTS: Tenant[] = [
   {
@@ -479,6 +491,51 @@ const DEFAULT_TENANT_DRAFT: TenantDraft = {
   password: "",
   adminPin: "",
 };
+
+const SAMPLE_PRODUCTS: Omit<AdminProduct, "id" | "createdAt">[] = [
+  {
+    sku: "MUSTER-001",
+    name: "Muster Eis",
+    buttonName: "Muster Eis",
+    type: "Artikel",
+    price: 2,
+    group: "Muster",
+    color: "BLUE",
+    style: "Akzent",
+    taxRate: 7,
+    isCustomPrice: false,
+    screenKey: "Menü",
+    source: "custom",
+  },
+  {
+    sku: "MUSTER-002",
+    name: "Muster Kaffee",
+    buttonName: "Muster Kaffee",
+    type: "Artikel",
+    price: 2.5,
+    group: "Muster",
+    color: "BROWN",
+    style: "Akzent",
+    taxRate: 19,
+    isCustomPrice: false,
+    screenKey: "Menü",
+    source: "custom",
+  },
+  {
+    sku: "MUSTER-003",
+    name: "Muster Kuchen",
+    buttonName: "Muster Kuchen",
+    type: "Artikel",
+    price: 3.5,
+    group: "Muster",
+    color: "YELLOW",
+    style: "Akzent",
+    taxRate: 7,
+    isCustomPrice: false,
+    screenKey: "Menü",
+    source: "custom",
+  },
+];
 
 const colorMap: Record<string, string> = {
   BLUE: "#2f5cf6",
@@ -561,6 +618,12 @@ function rowsToObjects(text: string) {
     .map((row) =>
       Object.fromEntries(header.map((key, index) => [key, row[index] ?? ""])),
     );
+}
+
+function csvRow(cells: string[]) {
+  return cells
+    .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
+    .join(",");
 }
 
 function normalizeName(value: string) {
@@ -864,6 +927,36 @@ function buildCatalog(catalogCsv: string, screensCsv: string): Catalog {
 
 function buildEmptyCatalog() {
   return buildCatalog(EMPTY_CATALOG_CSV, EMPTY_SCREENS_CSV);
+}
+
+function createTenantSampleProducts(): AdminProduct[] {
+  const createdAt = new Date().toISOString();
+  return SAMPLE_PRODUCTS.map((product, index) => ({
+    ...product,
+    id: `sample-${index + 1}`,
+    createdAt,
+  }));
+}
+
+function buildCatalogTemplateCsv() {
+  const rows = SAMPLE_PRODUCTS.map((product) => [
+    product.sku,
+    product.name,
+    product.type,
+    product.group,
+    product.price === null
+      ? ""
+      : product.price.toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+    product.buttonName,
+    product.color,
+    product.style,
+    product.screenKey,
+  ]);
+
+  return [csvRow(CATALOG_TEMPLATE_HEADERS), ...rows.map(csvRow)].join("\n");
 }
 
 function tenantStorageKey(baseKey: string, tenantId: string) {
@@ -1331,6 +1424,7 @@ export default function Home() {
   const [tenants, setTenants] = useState<Tenant[]>(DEFAULT_TENANTS);
   const [tenantsLoaded, setTenantsLoaded] = useState(false);
   const [activeTenantId, setActiveTenantId] = useState("");
+  const [portalArea, setPortalArea] = useState<PortalArea>("cash");
   const [portalLoginName, setPortalLoginName] = useState("");
   const [portalPassword, setPortalPassword] = useState("");
   const [tenantDraft, setTenantDraft] =
@@ -1384,6 +1478,7 @@ export default function Home() {
     useState<InstallPromptEvent | null>(null);
   const activeTenant =
     tenants.find((tenant) => tenant.id === activeTenantId) ?? null;
+  const isAdminPortal = portalArea === "admin";
   const canManageTenants = activeTenant?.id === DEFAULT_TENANT_ID;
   const visibleAdminSections = useMemo(
     () =>
@@ -1496,7 +1591,7 @@ export default function Home() {
       if (activeTenant.catalogMode === "empty") {
         setBaseCatalog(buildEmptyCatalog());
         setScreenCsv(EMPTY_SCREENS_CSV);
-        setNotice(`${activeTenant.businessName} als leere Musterkasse geladen`);
+        setNotice(`${activeTenant.businessName} als Musterkasse geladen`);
         return;
       }
 
@@ -1561,7 +1656,9 @@ export default function Home() {
       const saved = readTenantStorage(STORAGE_ADMIN_PRODUCTS, activeTenant.id);
 
       if (!saved) {
-        setAdminProducts([]);
+        setAdminProducts(
+          activeTenant.catalogMode === "empty" ? createTenantSampleProducts() : [],
+        );
         setAdminProductsLoaded(true);
         return;
       }
@@ -1864,6 +1961,7 @@ export default function Home() {
   }, [catalog, currentScreen, query]);
 
   const currentPath = currentScreen.split("/");
+  const cartItemCount = cart.reduce((sum, line) => sum + line.qty, 0);
   const grossBeforeDiscount = cart.reduce(
     (sum, line) => sum + line.qty * line.unitPrice,
     0,
@@ -1926,21 +2024,39 @@ export default function Home() {
     const tenant = tenants.find(
       (item) => item.loginName.trim().toLowerCase() === loginName,
     );
+    const savedAdminPassword = tenant
+      ? readTenantStorage(STORAGE_ADMIN_PASSWORD, tenant.id)
+      : null;
+    const tenantPasswordMatches = Boolean(tenant && tenant.password === password);
+    const adminPasswordMatches = Boolean(savedAdminPassword && savedAdminPassword === password);
+    const passwordAllowed =
+      portalArea === "admin"
+        ? tenantPasswordMatches || adminPasswordMatches
+        : tenantPasswordMatches;
 
-    if (!tenant || tenant.password !== password) {
+    if (!tenant || !passwordAllowed) {
       setNotice("Unternehmenskennung oder Passwort ist falsch");
       return;
     }
 
     resetRegisterSession();
+    if (portalArea === "admin") {
+      setAdminUnlocked(true);
+      setMode("admin");
+    }
     setActiveTenantId(tenant.id);
     setPortalPassword("");
-    setNotice(`${tenant.businessName} geöffnet`);
+    setNotice(
+      portalArea === "admin"
+        ? `${tenant.businessName} Adminbereich geöffnet`
+        : `${tenant.businessName} Kassenbereich geöffnet`,
+    );
   }
 
   function logoutTenant() {
     resetRegisterSession();
     setActiveTenantId("");
+    setPortalArea("cash");
     setPortalLoginName("");
     setPortalPassword("");
     setNotice("Unternehmen abgemeldet");
@@ -1999,7 +2115,7 @@ export default function Home() {
     );
     window.localStorage.setItem(
       tenantStorageKey(STORAGE_ADMIN_PRODUCTS, tenant.id),
-      JSON.stringify([]),
+      JSON.stringify(createTenantSampleProducts()),
     );
     window.localStorage.setItem(
       tenantStorageKey(STORAGE_DISCOUNTS, tenant.id),
@@ -2010,7 +2126,7 @@ export default function Home() {
       JSON.stringify([]),
     );
     setTenantDraft(DEFAULT_TENANT_DRAFT);
-    setNotice(`${tenant.businessName} wurde als leere Kasse angelegt`);
+    setNotice(`${tenant.businessName} wurde mit 3 Musterprodukten angelegt`);
   }
 
   function exportTenantBackup() {
@@ -2239,6 +2355,15 @@ export default function Home() {
     event.target.value = "";
   }
 
+  function exportCatalogTemplate() {
+    downloadTextFile(
+      "peters-kasse-produkte-muster.csv",
+      buildCatalogTemplateCsv(),
+      "text/csv;charset=utf-8",
+    );
+    setNotice("CSV-Musterdatei exportiert");
+  }
+
   function exportDailyReport() {
     const header = [
       "Bon",
@@ -2284,9 +2409,7 @@ export default function Home() {
         positions,
       ];
     });
-    const csv = [header, ...lines]
-      .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","))
-      .join("\n");
+    const csv = [header, ...lines].map(csvRow).join("\n");
     downloadTextFile(`tagesabschluss-${todayKey()}.csv`, csv, "text/csv;charset=utf-8");
   }
 
@@ -2905,8 +3028,36 @@ export default function Home() {
               </div>
             </div>
             <div className="portal-copy">
-              <strong>Unternehmen anmelden</strong>
+              <strong>
+                {portalArea === "admin"
+                  ? "Adminbereich anmelden"
+                  : "Kassenbereich anmelden"}
+              </strong>
               <span>{notice}</span>
+            </div>
+            <div className="portal-area-grid" aria-label="Bereich auswählen">
+              <button
+                className={portalArea === "cash" ? "active" : ""}
+                onClick={() => {
+                  setPortalArea("cash");
+                  setPortalPassword("");
+                  setNotice("Kassenbereich ausgewählt");
+                }}
+                type="button"
+              >
+                <strong>Kassenbereich</strong>
+              </button>
+              <button
+                className={portalArea === "admin" ? "active" : ""}
+                onClick={() => {
+                  setPortalArea("admin");
+                  setPortalPassword("");
+                  setNotice("Adminbereich ausgewählt");
+                }}
+                type="button"
+              >
+                <strong>Adminbereich</strong>
+              </button>
             </div>
             <div className="field-grid portal-fields">
               <label>
@@ -2945,7 +3096,7 @@ export default function Home() {
               onClick={loginTenant}
               type="button"
             >
-              Unternehmen öffnen
+              {portalArea === "admin" ? "Adminbereich öffnen" : "Kassenbereich öffnen"}
             </button>
             <div className="portal-help">
               <span>Zugang</span>
@@ -2953,12 +3104,28 @@ export default function Home() {
             </div>
           </div>
         </section>
-      ) : activeUser ? (
+      ) : activeUser || isAdminPortal ? (
         <>
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Lightspeed K-Series Nachbau</p>
-          <h1>{receiptConfig.businessName}</h1>
+        <div className="topbar-brand">
+          <Image
+            alt=""
+            aria-hidden="true"
+            className="topbar-logo"
+            height={52}
+            src="/opa-peters-logo.png"
+            width={52}
+          />
+          <div>
+            <p className="eyebrow">
+              {isAdminPortal ? "Verwaltung" : "Kassenbereich"}
+            </p>
+            <h1>
+              {isAdminPortal
+                ? `${activeTenant.businessName} Adminbereich`
+                : receiptConfig.businessName}
+            </h1>
+          </div>
         </div>
         <div className="status-line">
           <span>
@@ -2982,41 +3149,47 @@ export default function Home() {
               App installieren
             </button>
           ) : null}
-          <div className="user-switch">
-            <span>Benutzer</span>
-            <strong>{activeUser.username}</strong>
-            <button className="logout-button" onClick={logoutUser} type="button">
-              Logout
+          {isAdminPortal ? (
+            <div className="user-switch">
+              <span>Bereich</span>
+              <strong>Admin</strong>
+              <button className="logout-button" onClick={logoutTenant} type="button">
+                Verlassen
+              </button>
+            </div>
+          ) : activeUser ? (
+            <div className="user-switch">
+              <span>Benutzer</span>
+              <strong>{activeUser.username}</strong>
+              <button className="logout-button" onClick={logoutUser} type="button">
+                Logout
+              </button>
+            </div>
+          ) : null}
+        </div>
+        {!isAdminPortal ? (
+          <div className="mode-tabs" aria-label="Arbeitsbereich">
+            <button
+              className={mode === "sale" ? "active" : ""}
+              onClick={() => setMode("sale")}
+              type="button"
+            >
+              Verkauf
+            </button>
+            <button
+              className={mode === "report" ? "active" : ""}
+              disabled={!canOpenReports}
+              onClick={() => setMode("report")}
+              type="button"
+            >
+              Tagesabschluss
             </button>
           </div>
-        </div>
-        <div className="mode-tabs" aria-label="Arbeitsbereich">
-          <button
-            className={mode === "sale" ? "active" : ""}
-            onClick={() => setMode("sale")}
-            type="button"
-          >
-            Verkauf
-          </button>
-          <button
-            className={mode === "report" ? "active" : ""}
-            disabled={!canOpenReports}
-            onClick={() => setMode("report")}
-            type="button"
-          >
-            Tagesabschluss
-          </button>
-          <button
-            className={mode === "admin" ? "active" : ""}
-            onClick={() => setMode("admin")}
-            type="button"
-          >
-            Admin
-          </button>
-        </div>
+        ) : null}
       </header>
 
-      <div className="workspace">
+      <div className={isAdminPortal ? "workspace admin-workspace" : "workspace"}>
+        {!isAdminPortal ? (
         <aside className="screen-rail" aria-label="Bildschirme">
           <div className="rail-title">Bildschirme</div>
           <button
@@ -3050,6 +3223,13 @@ export default function Home() {
             <label className="import-button" htmlFor="catalog-import">
               CSV importieren
             </label>
+            <button
+              className="import-button"
+              onClick={exportCatalogTemplate}
+              type="button"
+            >
+              Muster CSV
+            </button>
             <input
               accept=".csv,text/csv"
               id="catalog-import"
@@ -3059,8 +3239,9 @@ export default function Home() {
             <span>{catalog ? `${catalog.products.length} Artikel geladen` : "Warten auf CSV"}</span>
           </div>
         </aside>
+        ) : null}
 
-        {mode === "sale" ? (
+        {mode === "sale" && !isAdminPortal ? (
           <section className="menu-area" aria-label="Artikelauswahl">
             <div className="menu-toolbar">
               <div>
@@ -3095,6 +3276,16 @@ export default function Home() {
                   value={query}
                 />
               </label>
+            </div>
+
+            <div className="sale-status-strip" aria-label="Verkaufsstatus">
+              <span>
+                <strong>{cartItemCount}</strong> Positionen
+              </span>
+              <span>
+                <strong>{currency.format(totalDue)}</strong> offen
+              </span>
+              <span>{query.trim() ? "Suche aktiv" : displayScreenKey(currentScreen)}</span>
             </div>
 
             {activeGroup && catalog ? (
@@ -3141,7 +3332,7 @@ export default function Home() {
               </div>
             )}
           </section>
-        ) : mode === "report" ? (
+        ) : mode === "report" && !isAdminPortal ? (
           <section className="report-area" aria-label="Tagesabschluss">
             <div className="report-header">
               <div>
@@ -3829,11 +4020,12 @@ export default function Home() {
                 {canManageTenants && activeAdminSection === "tenants" ? (
             <div className="admin-grid admin-grid-single">
               <div className="admin-block">
-                <h3>Unternehmen & leere Musterkassen</h3>
+                <h3>Unternehmen & Musterkassen</h3>
                 <p className="admin-note">
-                  Neue Unternehmen erhalten eine eigene Anmeldung und eine leere
-                  Kasse ohne vorangelegte Produkte. Bon- und Druckeinstellungen
-                  werden als Startpunkt aus dieser Kasse übernommen.
+                  Neue Unternehmen erhalten eine eigene Anmeldung und eine
+                  Musterkasse mit drei Beispielprodukten. Bon- und
+                  Druckeinstellungen werden als Startpunkt aus dieser Kasse
+                  übernommen.
                 </p>
                 <div className="field-grid">
                   <label>
@@ -3899,7 +4091,7 @@ export default function Home() {
                   onClick={createTenantRegister}
                   type="button"
                 >
-                  Leere Kasse für Unternehmen anlegen
+                  Kasse für Unternehmen anlegen
                 </button>
                 <div className="tenant-backup-panel">
                   <h4>Mandanten-Sicherung</h4>
@@ -3937,7 +4129,7 @@ export default function Home() {
                           Kennung: {tenant.loginName} ·{" "}
                           {tenant.catalogMode === "seed"
                             ? "bestehende Opa-Peters-Kasse"
-                            : "leere Musterkasse"}
+                            : "Musterkasse mit Beispielprodukten"}
                         </span>
                       </div>
                       <span>{tenant.id === activeTenantId ? "geöffnet" : "bereit"}</span>
@@ -4181,6 +4373,7 @@ export default function Home() {
           </section>
         )}
 
+        {!isAdminPortal ? (
         <aside className="cart-panel" aria-label="Warenkorb">
           <div className="cart-header">
             <div>
@@ -4343,6 +4536,7 @@ export default function Home() {
             </button>
           </div>
         </aside>
+        ) : null}
       </div>
 
       {customDraft ? (
