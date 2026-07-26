@@ -442,6 +442,19 @@ const DEFAULT_USERS: PosUser[] = [
   },
 ];
 
+const DEFAULT_LOGIN_USER_ID =
+  DEFAULT_USERS.find((user) => user.active && !user.requiresPassword)?.id ??
+  DEFAULT_USERS.find((user) => user.active)?.id ??
+  "";
+
+function preferredLoginUserId(users: PosUser[]) {
+  return (
+    users.find((user) => user.active && !user.requiresPassword)?.id ??
+    users.find((user) => user.active)?.id ??
+    ""
+  );
+}
+
 const DEFAULT_USER_DRAFT: UserDraft = {
   username: "",
   firstName: "",
@@ -1442,7 +1455,7 @@ export default function Home() {
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [userDraft, setUserDraft] = useState<UserDraft>(DEFAULT_USER_DRAFT);
   const [activeUserId, setActiveUserId] = useState("");
-  const [loginUserId, setLoginUserId] = useState(DEFAULT_USERS[0].id);
+  const [loginUserId, setLoginUserId] = useState(DEFAULT_LOGIN_USER_ID);
   const [loginPassword, setLoginPassword] = useState("");
   const [adminPassword, setAdminPassword] = useState(DEFAULT_ADMIN_PASSWORD);
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
@@ -1749,7 +1762,7 @@ export default function Home() {
       if (!activeTenant) {
         setUsers(DEFAULT_USERS);
         setActiveUserId("");
-        setLoginUserId(DEFAULT_USERS[0].id);
+        setLoginUserId(DEFAULT_LOGIN_USER_ID);
         setAdminPassword(DEFAULT_ADMIN_PASSWORD);
         return;
       }
@@ -1768,7 +1781,7 @@ export default function Home() {
         try {
           const parsedUsers = normalizeStoredUsers(JSON.parse(saved) as PosUser[]);
           setUsers(parsedUsers);
-          setLoginUserId(parsedUsers.find((user) => user.active)?.id ?? "");
+          setLoginUserId(preferredLoginUserId(parsedUsers));
         } catch {
           removeTenantStorage(STORAGE_USERS, activeTenant.id);
         } finally {
@@ -1780,7 +1793,7 @@ export default function Home() {
       if (activeTenant.id !== DEFAULT_TENANT_ID) {
         const tenantUsers = createTenantUsers(activeTenant.password);
         setUsers(tenantUsers);
-        setLoginUserId(tenantUsers[0]?.id ?? "");
+        setLoginUserId(preferredLoginUserId(tenantUsers));
         setUsersLoaded(true);
         return;
       }
@@ -1791,7 +1804,7 @@ export default function Home() {
         const importedUsers = parseUsersCsv(text);
         if (importedUsers.length > 0) {
           setUsers(importedUsers);
-          setLoginUserId(importedUsers.find((user) => user.active)?.id ?? "");
+          setLoginUserId(preferredLoginUserId(importedUsers));
           const managerPin = importedUsers.find((user) => user.permissions.admin)?.pin;
           if (managerPin && !savedPassword) {
             setAdminPassword(managerPin);
@@ -1799,6 +1812,7 @@ export default function Home() {
         }
       } catch {
         setUsers(DEFAULT_USERS);
+        setLoginUserId(DEFAULT_LOGIN_USER_ID);
       } finally {
         setUsersLoaded(true);
       }
@@ -1880,10 +1894,13 @@ export default function Home() {
   }, [catalog]);
 
   const activeUser = users.find((user) => user.id === activeUserId) ?? null;
+  const activeLoginUsers = users.filter((user) => user.active);
   const selectedLoginUser =
-    users.find((user) => user.id === loginUserId) ??
-    users.find((user) => user.active) ??
+    activeLoginUsers.find((user) => user.id === loginUserId) ??
+    activeLoginUsers.find((user) => !user.requiresPassword) ??
+    activeLoginUsers[0] ??
     null;
+  const selectedLoginUserId = selectedLoginUser?.id ?? "";
   const canUseDiscounts = Boolean(
     activeUser?.active && activeUser.permissions.discounts,
   );
@@ -2000,6 +2017,7 @@ export default function Home() {
 
   function resetRegisterSession() {
     setActiveUserId("");
+    setLoginUserId(DEFAULT_LOGIN_USER_ID);
     setLoginPassword("");
     setAdminUnlocked(false);
     setAdminPasswordInput("");
@@ -2021,8 +2039,19 @@ export default function Home() {
   }
 
   function loginTenant() {
+    if (!tenantsLoaded) {
+      setNotice("Kassen werden noch geladen");
+      return;
+    }
+
     const loginName = portalLoginName.trim().toLowerCase();
     const password = portalPassword.trim();
+
+    if (!loginName || !password) {
+      setNotice("Bitte Unternehmenskennung und Passwort eingeben");
+      return;
+    }
+
     const tenant = tenants.find(
       (item) => item.loginName.trim().toLowerCase() === loginName,
     );
@@ -2750,6 +2779,11 @@ export default function Home() {
       return;
     }
 
+    if (user.requiresPassword && !loginPassword.trim()) {
+      setNotice("Bitte Passwort / PIN eingeben");
+      return;
+    }
+
     if (user.requiresPassword && user.pin !== loginPassword.trim()) {
       setNotice("Passwort ist falsch");
       return;
@@ -3120,7 +3154,11 @@ export default function Home() {
               onClick={loginTenant}
               type="button"
             >
-              {portalArea === "admin" ? "Adminbereich öffnen" : "Kassenbereich öffnen"}
+              {!tenantsLoaded
+                ? "Kassen werden geladen"
+                : portalArea === "admin"
+                  ? "Adminbereich öffnen"
+                  : "Kassenbereich öffnen"}
             </button>
             <div className="portal-help">
               <span>Zugang</span>
@@ -4788,7 +4826,7 @@ export default function Home() {
                   .map((user) => (
                     <button
                       className={
-                        loginUserId === user.id
+                        selectedLoginUserId === user.id
                           ? "login-user-button active"
                           : "login-user-button"
                       }
@@ -4832,7 +4870,7 @@ export default function Home() {
                 onClick={() => loginUser()}
                 type="button"
               >
-                Anmelden
+                {selectedLoginUser?.requiresPassword ? "Mit PIN anmelden" : "Anmelden"}
               </button>
               <button className="admin-secondary" onClick={logoutTenant} type="button">
                 Unternehmen wechseln
