@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 
 type Product = {
   sku: string;
@@ -64,7 +65,7 @@ type PaymentSplit = {
 
 type DeviceKind = "phone" | "tablet" | "desktop";
 type DiscountType = "percent" | "amount";
-type AdminSection = "products" | "discounts" | "users" | "receipts";
+type AdminSection = "products" | "discounts" | "users" | "receipts" | "tenants";
 type PrinterCommandSet = "escpos" | "star";
 type PrinterProfile =
   | "star-mcprint"
@@ -182,8 +183,6 @@ type ReceiptConfig = {
   printerProfile: PrinterProfile;
   printerCommandSet: PrinterCommandSet;
   cutAfterPrint: boolean;
-  autoPrintOnSale: boolean;
-  autoOpenDrawer: boolean;
 };
 
 type BluetoothWritableCharacteristic = {
@@ -207,10 +206,7 @@ type BluetoothDeviceLike = {
   name?: string;
   gatt?: {
     connect(): Promise<BluetoothServerLike>;
-    disconnect?: () => void;
   };
-  addEventListener?: (type: "gattserverdisconnected", listener: () => void) => void;
-  removeEventListener?: (type: "gattserverdisconnected", listener: () => void) => void;
 };
 
 type BluetoothLike = {
@@ -235,26 +231,54 @@ type InstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
+type TenantCatalogMode = "seed" | "empty";
+
+type Tenant = {
+  id: string;
+  businessName: string;
+  loginName: string;
+  password: string;
+  catalogMode: TenantCatalogMode;
+  createdAt: string;
+};
+
+type TenantDraft = {
+  businessName: string;
+  loginName: string;
+  password: string;
+  adminPin: string;
+};
+
+type TenantBackupFile = {
+  app?: string;
+  version?: number;
+  exportedAt?: string;
+  tenants?: Tenant[];
+  data?: Record<string, Partial<Record<string, string | null>>>;
+};
+
 const BUSINESS_NAME = "Carsten & Kim-Ole Peters GbR";
+const DEFAULT_TENANT_ID = "opa-peters";
+const STORAGE_TENANTS = "peters-kasse-tenants-v1";
 const STORAGE_TRANSACTIONS = "peters-kasse-transactions-v1";
 const STORAGE_ADMIN_PRODUCTS = "peters-kasse-admin-products-v1";
 const STORAGE_RECEIPT_CONFIG = "peters-kasse-receipt-config-v1";
 const STORAGE_DISCOUNTS = "peters-kasse-discounts-v1";
 const STORAGE_USERS = "peters-kasse-users-v1";
 const STORAGE_ADMIN_PASSWORD = "peters-kasse-admin-password-v1";
+const TENANT_DATA_STORAGE_KEYS = [
+  STORAGE_TRANSACTIONS,
+  STORAGE_ADMIN_PRODUCTS,
+  STORAGE_RECEIPT_CONFIG,
+  STORAGE_DISCOUNTS,
+  STORAGE_USERS,
+  STORAGE_ADMIN_PASSWORD,
+] as const;
 const SYSTEM_SKUS = new Set(["FT1", "FT2", "MSG0", "MSG1", "MSG2"]);
-// Bekannte GATT-Service-UUIDs verbreiteter BLE-Bon-/ESC-POS-Drucker
-// (u.a. HM-10/BLE-UART-Module, Microchip RN4870/BM series, generische
-// "Printer Service"-UUIDs vieler China-Thermodrucker sowie Star mC-Print).
 const BLUETOOTH_PRINTER_SERVICES = [
   "0000ffe0-0000-1000-8000-00805f9b34fb",
   "0000ff00-0000-1000-8000-00805f9b34fb",
   "49535343-fe7d-4ae5-8fa9-9fafd205e455",
-  "49535343-8841-43f4-a8d4-ecbe34729bb3",
-  "000018f0-0000-1000-8000-00805f9b34fb",
-  "e7810a71-73ae-499d-8c15-faa9aef0c3f2",
-  "0000fee7-0000-1000-8000-00805f9b34fb",
-  "0000fff0-0000-1000-8000-00805f9b34fb",
 ];
 
 const DEFAULT_RECEIPT_CONFIG: ReceiptConfig = {
@@ -268,8 +292,6 @@ const DEFAULT_RECEIPT_CONFIG: ReceiptConfig = {
   printerProfile: "star-mcprint",
   printerCommandSet: "escpos",
   cutAfterPrint: true,
-  autoPrintOnSale: true,
-  autoOpenDrawer: true,
 };
 
 const ADMIN_SECTIONS: { id: AdminSection; label: string }[] = [
@@ -277,6 +299,7 @@ const ADMIN_SECTIONS: { id: AdminSection; label: string }[] = [
   { id: "discounts", label: "Rabatte" },
   { id: "users", label: "Benutzer" },
   { id: "receipts", label: "Bons" },
+  { id: "tenants", label: "Kassen" },
 ];
 
 const PRINTER_PROFILES: { id: PrinterProfile; label: string; detail: string }[] = [
@@ -435,6 +458,27 @@ const DEFAULT_USER_DRAFT: UserDraft = {
 };
 
 const DEFAULT_ADMIN_PASSWORD = "1902";
+const EMPTY_CATALOG_CSV =
+  "SKU,Name,Typ,Warengruppe,Standardpreis,Schaltflächenname,Schaltflächenfarbe,Schaltflächenstil,Menü/Bildschirm\n";
+const EMPTY_SCREENS_CSV = '"SKU","Bildschirm"\n';
+
+const DEFAULT_TENANTS: Tenant[] = [
+  {
+    id: DEFAULT_TENANT_ID,
+    businessName: "Opa Peters",
+    loginName: "opa",
+    password: DEFAULT_ADMIN_PASSWORD,
+    catalogMode: "seed",
+    createdAt: "2026-07-26T00:00:00.000Z",
+  },
+];
+
+const DEFAULT_TENANT_DRAFT: TenantDraft = {
+  businessName: "",
+  loginName: "",
+  password: "",
+  adminPin: "",
+};
 
 const colorMap: Record<string, string> = {
   BLUE: "#2f5cf6",
@@ -818,6 +862,63 @@ function buildCatalog(catalogCsv: string, screensCsv: string): Catalog {
   };
 }
 
+function buildEmptyCatalog() {
+  return buildCatalog(EMPTY_CATALOG_CSV, EMPTY_SCREENS_CSV);
+}
+
+function tenantStorageKey(baseKey: string, tenantId: string) {
+  return `${baseKey}:${tenantId}`;
+}
+
+function readTenantStorage(baseKey: string, tenantId: string) {
+  const scoped = window.localStorage.getItem(tenantStorageKey(baseKey, tenantId));
+  if (scoped !== null) {
+    return scoped;
+  }
+
+  return tenantId === DEFAULT_TENANT_ID ? window.localStorage.getItem(baseKey) : null;
+}
+
+function removeTenantStorage(baseKey: string, tenantId: string) {
+  window.localStorage.removeItem(tenantStorageKey(baseKey, tenantId));
+  if (tenantId === DEFAULT_TENANT_ID) {
+    window.localStorage.removeItem(baseKey);
+  }
+}
+
+function downloadTextFile(filename: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function createTenantUsers(pin: string): PosUser[] {
+  return [
+    {
+      ...DEFAULT_USERS[0],
+      id: `tenant-manager-${Date.now().toString(36)}`,
+      pin,
+      requiresPassword: Boolean(pin),
+    },
+  ];
+}
+
+function normalizeStoredTenants(tenants: Tenant[]) {
+  return tenants.map((tenant) => ({
+    ...tenant,
+    id: tenant.id || `tenant-${Date.now().toString(36)}`,
+    businessName: tenant.businessName || tenant.loginName || "Neue Kasse",
+    loginName: tenant.loginName || tenant.id || "kasse",
+    password: tenant.password || DEFAULT_ADMIN_PASSWORD,
+    catalogMode: tenant.catalogMode ?? "empty",
+    createdAt: tenant.createdAt || new Date().toISOString(),
+  }));
+}
+
 function todayKey(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA").format(date);
 }
@@ -1172,39 +1273,6 @@ function buildPrinterPayload(text: string, config: ReceiptConfig) {
   return concatBytes([init, body, feed, cut]);
 }
 
-// Kassenschublade oeffnen (Drawer-Kick). Die meisten Bondrucker geben den
-// Impuls fuer die Schublade ueber den RJ11/RJ12-Anschluss am Drucker weiter,
-// sobald der Drucker diese Sequenz erhaelt - unabhaengig davon, ob danach
-// tatsaechlich gedruckt wird.
-function buildDrawerKickPayload(config: ReceiptConfig) {
-  if (config.printerCommandSet === "star") {
-    // Star StarPRNT/StarLine-Echtzeitbefehl: DLE DC4 n m t
-    return Uint8Array.from([0x10, 0x14, 0x01, 0x00, 0x05]);
-  }
-
-  // ESC/POS-Standardbefehl (auch von Star-Druckern im ESC/POS-Emulationsmodus
-  // unterstuetzt): ESC p m t1 t2
-  return Uint8Array.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
-}
-
-function isWebBluetoothUnavailableOnPlatform() {
-  if (typeof navigator === "undefined") {
-    return false;
-  }
-
-  const nav = navigator as Navigator & { standalone?: boolean };
-  const userAgent = nav.userAgent.toLowerCase();
-  const isIPad =
-    /ipad/.test(userAgent) ||
-    (nav.platform === "MacIntel" && nav.maxTouchPoints > 1);
-  const isIPhoneOrIPod = /iphone|ipod/.test(userAgent);
-
-  // Jeder Browser unter iOS/iPadOS (Safari, Chrome, Edge ...) basiert auf
-  // WebKit und unterstuetzt daher kein Web-Bluetooth - unabhaengig vom
-  // gewaehlten Browser. Das ist eine Plattform-Einschraenkung von Apple.
-  return isIPad || isIPhoneOrIPod;
-}
-
 function buildReceiptText(transaction: Transaction, config: ReceiptConfig) {
   const width = receiptWidthChars(config.widthMm);
   const lines: string[] = [];
@@ -1260,6 +1328,13 @@ function buildReceiptText(transaction: Transaction, config: ReceiptConfig) {
 }
 
 export default function Home() {
+  const [tenants, setTenants] = useState<Tenant[]>(DEFAULT_TENANTS);
+  const [tenantsLoaded, setTenantsLoaded] = useState(false);
+  const [activeTenantId, setActiveTenantId] = useState("");
+  const [portalLoginName, setPortalLoginName] = useState("");
+  const [portalPassword, setPortalPassword] = useState("");
+  const [tenantDraft, setTenantDraft] =
+    useState<TenantDraft>(DEFAULT_TENANT_DRAFT);
   const [baseCatalog, setBaseCatalog] = useState<Catalog | null>(null);
   const [screenCsv, setScreenCsv] = useState("");
   const [adminProducts, setAdminProducts] = useState<AdminProduct[]>([]);
@@ -1284,16 +1359,8 @@ export default function Home() {
   const [receiptConfigLoaded, setReceiptConfigLoaded] = useState(false);
   const [printerCharacteristic, setPrinterCharacteristic] =
     useState<BluetoothWritableCharacteristic | null>(null);
-  const [printerDevice, setPrinterDevice] = useState<BluetoothDeviceLike | null>(
-    null,
-  );
   const [printerDeviceName, setPrinterDeviceName] = useState("");
   const [printerStatus, setPrinterStatus] = useState("Kein Drucker verbunden");
-  const [printerConnecting, setPrinterConnecting] = useState(false);
-  const bluetoothUnsupportedOnDevice = useMemo(
-    () => isWebBluetoothUnavailableOnPlatform(),
-    [],
-  );
   const [currentScreen, setCurrentScreen] = useState("Menü");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [query, setQuery] = useState("");
@@ -1310,11 +1377,23 @@ export default function Home() {
   const [journalLoaded, setJournalLoaded] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<Transaction | null>(null);
   const [mode, setMode] = useState<"sale" | "report" | "admin">("sale");
-  const [notice, setNotice] = useState("Kassendaten werden geladen");
+  const [notice, setNotice] = useState("Bitte Unternehmen anmelden");
   const [now, setNow] = useState<Date | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [installPrompt, setInstallPrompt] =
     useState<InstallPromptEvent | null>(null);
+  const activeTenant =
+    tenants.find((tenant) => tenant.id === activeTenantId) ?? null;
+  const canManageTenants = activeTenant?.id === DEFAULT_TENANT_ID;
+  const visibleAdminSections = useMemo(
+    () =>
+      ADMIN_SECTIONS.filter(
+        (section) => section.id !== "tenants" || canManageTenants,
+      ),
+    [canManageTenants],
+  );
+  const activeAdminSection =
+    canManageTenants || adminSection !== "tenants" ? adminSection : "products";
 
   useEffect(() => {
     const refreshClock = () => setNow(new Date());
@@ -1379,7 +1458,48 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    async function loadTenants() {
+      await Promise.resolve();
+      const saved = window.localStorage.getItem(STORAGE_TENANTS);
+
+      if (saved) {
+        try {
+          const parsedTenants = normalizeStoredTenants(JSON.parse(saved) as Tenant[]);
+          setTenants(parsedTenants.length ? parsedTenants : DEFAULT_TENANTS);
+        } catch {
+          window.localStorage.removeItem(STORAGE_TENANTS);
+        }
+      }
+
+      setTenantsLoaded(true);
+    }
+
+    loadTenants();
+  }, []);
+
+  useEffect(() => {
+    if (!tenantsLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(STORAGE_TENANTS, JSON.stringify(tenants));
+  }, [tenantsLoaded, tenants]);
+
+  useEffect(() => {
     async function loadData() {
+      if (!activeTenant) {
+        setBaseCatalog(null);
+        setScreenCsv("");
+        return;
+      }
+
+      if (activeTenant.catalogMode === "empty") {
+        setBaseCatalog(buildEmptyCatalog());
+        setScreenCsv(EMPTY_SCREENS_CSV);
+        setNotice(`${activeTenant.businessName} als leere Musterkasse geladen`);
+        return;
+      }
+
       try {
         const [catalogResponse, screensResponse] = await Promise.all([
           fetch("/data/catalog.csv"),
@@ -1391,21 +1511,28 @@ export default function Home() {
         ]);
         setBaseCatalog(buildCatalog(catalogText, screensText));
         setScreenCsv(screensText);
-        setNotice("Lightspeed-Export geladen");
+        setNotice(`${activeTenant.businessName} geladen`);
       } catch {
         setNotice("CSV-Daten konnten nicht geladen werden");
       }
     }
 
     loadData();
-  }, []);
+  }, [activeTenant]);
 
   useEffect(() => {
     async function loadJournal() {
+      setJournalLoaded(false);
+      if (!activeTenant) {
+        setTransactions([]);
+        return;
+      }
+
       await Promise.resolve();
-      const saved = window.localStorage.getItem(STORAGE_TRANSACTIONS);
+      const saved = readTenantStorage(STORAGE_TRANSACTIONS, activeTenant.id);
 
       if (!saved) {
+        setTransactions([]);
         setJournalLoaded(true);
         return;
       }
@@ -1413,21 +1540,28 @@ export default function Home() {
       try {
         setTransactions(JSON.parse(saved) as Transaction[]);
       } catch {
-        window.localStorage.removeItem(STORAGE_TRANSACTIONS);
+        removeTenantStorage(STORAGE_TRANSACTIONS, activeTenant.id);
       } finally {
         setJournalLoaded(true);
       }
     }
 
     loadJournal();
-  }, []);
+  }, [activeTenant]);
 
   useEffect(() => {
     async function loadAdminProducts() {
+      setAdminProductsLoaded(false);
+      if (!activeTenant) {
+        setAdminProducts([]);
+        return;
+      }
+
       await Promise.resolve();
-      const saved = window.localStorage.getItem(STORAGE_ADMIN_PRODUCTS);
+      const saved = readTenantStorage(STORAGE_ADMIN_PRODUCTS, activeTenant.id);
 
       if (!saved) {
+        setAdminProducts([]);
         setAdminProductsLoaded(true);
         return;
       }
@@ -1437,46 +1571,64 @@ export default function Home() {
           normalizeStoredAdminProducts(JSON.parse(saved) as AdminProduct[]),
         );
       } catch {
-        window.localStorage.removeItem(STORAGE_ADMIN_PRODUCTS);
+        removeTenantStorage(STORAGE_ADMIN_PRODUCTS, activeTenant.id);
       } finally {
         setAdminProductsLoaded(true);
       }
     }
 
     loadAdminProducts();
-  }, []);
+  }, [activeTenant]);
 
   useEffect(() => {
     async function loadReceiptConfig() {
+      setReceiptConfigLoaded(false);
+      if (!activeTenant) {
+        setReceiptConfig(DEFAULT_RECEIPT_CONFIG);
+        return;
+      }
+
       await Promise.resolve();
-      const saved = window.localStorage.getItem(STORAGE_RECEIPT_CONFIG);
+      const saved = readTenantStorage(STORAGE_RECEIPT_CONFIG, activeTenant.id);
+      const tenantReceiptConfig = {
+        ...DEFAULT_RECEIPT_CONFIG,
+        businessName: activeTenant.businessName,
+      };
 
       if (!saved) {
+        setReceiptConfig(tenantReceiptConfig);
         setReceiptConfigLoaded(true);
         return;
       }
 
       try {
         setReceiptConfig({
-          ...DEFAULT_RECEIPT_CONFIG,
+          ...tenantReceiptConfig,
           ...(JSON.parse(saved) as Partial<ReceiptConfig>),
         });
       } catch {
-        window.localStorage.removeItem(STORAGE_RECEIPT_CONFIG);
+        removeTenantStorage(STORAGE_RECEIPT_CONFIG, activeTenant.id);
       } finally {
         setReceiptConfigLoaded(true);
       }
     }
 
     loadReceiptConfig();
-  }, []);
+  }, [activeTenant]);
 
   useEffect(() => {
     async function loadDiscounts() {
+      setDiscountsLoaded(false);
+      if (!activeTenant) {
+        setDiscounts([]);
+        return;
+      }
+
       await Promise.resolve();
-      const saved = window.localStorage.getItem(STORAGE_DISCOUNTS);
+      const saved = readTenantStorage(STORAGE_DISCOUNTS, activeTenant.id);
 
       if (!saved) {
+        setDiscounts(activeTenant.catalogMode === "seed" ? DEFAULT_DISCOUNTS : []);
         setDiscountsLoaded(true);
         return;
       }
@@ -1484,23 +1636,34 @@ export default function Home() {
       try {
         setDiscounts(JSON.parse(saved) as DiscountPreset[]);
       } catch {
-        window.localStorage.removeItem(STORAGE_DISCOUNTS);
+        removeTenantStorage(STORAGE_DISCOUNTS, activeTenant.id);
       } finally {
         setDiscountsLoaded(true);
       }
     }
 
     loadDiscounts();
-  }, []);
+  }, [activeTenant]);
 
   useEffect(() => {
     async function loadUsers() {
+      setUsersLoaded(false);
+      if (!activeTenant) {
+        setUsers(DEFAULT_USERS);
+        setActiveUserId("");
+        setLoginUserId(DEFAULT_USERS[0].id);
+        setAdminPassword(DEFAULT_ADMIN_PASSWORD);
+        return;
+      }
+
       await Promise.resolve();
-      const saved = window.localStorage.getItem(STORAGE_USERS);
-      const savedPassword = window.localStorage.getItem(STORAGE_ADMIN_PASSWORD);
+      const saved = readTenantStorage(STORAGE_USERS, activeTenant.id);
+      const savedPassword = readTenantStorage(STORAGE_ADMIN_PASSWORD, activeTenant.id);
 
       if (savedPassword) {
         setAdminPassword(savedPassword);
+      } else if (activeTenant.id !== DEFAULT_TENANT_ID) {
+        setAdminPassword(activeTenant.password);
       }
 
       if (saved) {
@@ -1509,10 +1672,18 @@ export default function Home() {
           setUsers(parsedUsers);
           setLoginUserId(parsedUsers.find((user) => user.active)?.id ?? "");
         } catch {
-          window.localStorage.removeItem(STORAGE_USERS);
+          removeTenantStorage(STORAGE_USERS, activeTenant.id);
         } finally {
           setUsersLoaded(true);
         }
+        return;
+      }
+
+      if (activeTenant.id !== DEFAULT_TENANT_ID) {
+        const tenantUsers = createTenantUsers(activeTenant.password);
+        setUsers(tenantUsers);
+        setLoginUserId(tenantUsers[0]?.id ?? "");
+        setUsersLoaded(true);
         return;
       }
 
@@ -1536,54 +1707,66 @@ export default function Home() {
     }
 
     loadUsers();
-  }, []);
+  }, [activeTenant]);
 
   useEffect(() => {
-    if (!journalLoaded) {
-      return;
-    }
-
-    window.localStorage.setItem(STORAGE_TRANSACTIONS, JSON.stringify(transactions));
-  }, [journalLoaded, transactions]);
-
-  useEffect(() => {
-    if (!adminProductsLoaded) {
+    if (!journalLoaded || !activeTenant) {
       return;
     }
 
     window.localStorage.setItem(
-      STORAGE_ADMIN_PRODUCTS,
+      tenantStorageKey(STORAGE_TRANSACTIONS, activeTenant.id),
+      JSON.stringify(transactions),
+    );
+  }, [activeTenant, journalLoaded, transactions]);
+
+  useEffect(() => {
+    if (!adminProductsLoaded || !activeTenant) {
+      return;
+    }
+
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_ADMIN_PRODUCTS, activeTenant.id),
       JSON.stringify(adminProducts),
     );
-  }, [adminProductsLoaded, adminProducts]);
+  }, [activeTenant, adminProductsLoaded, adminProducts]);
 
   useEffect(() => {
-    if (!receiptConfigLoaded) {
+    if (!receiptConfigLoaded || !activeTenant) {
       return;
     }
 
     window.localStorage.setItem(
-      STORAGE_RECEIPT_CONFIG,
+      tenantStorageKey(STORAGE_RECEIPT_CONFIG, activeTenant.id),
       JSON.stringify(receiptConfig),
     );
-  }, [receiptConfigLoaded, receiptConfig]);
+  }, [activeTenant, receiptConfigLoaded, receiptConfig]);
 
   useEffect(() => {
-    if (!discountsLoaded) {
+    if (!discountsLoaded || !activeTenant) {
       return;
     }
 
-    window.localStorage.setItem(STORAGE_DISCOUNTS, JSON.stringify(discounts));
-  }, [discountsLoaded, discounts]);
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_DISCOUNTS, activeTenant.id),
+      JSON.stringify(discounts),
+    );
+  }, [activeTenant, discountsLoaded, discounts]);
 
   useEffect(() => {
-    if (!usersLoaded) {
+    if (!usersLoaded || !activeTenant) {
       return;
     }
 
-    window.localStorage.setItem(STORAGE_USERS, JSON.stringify(users));
-    window.localStorage.setItem(STORAGE_ADMIN_PASSWORD, adminPassword);
-  }, [usersLoaded, users, adminPassword]);
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_USERS, activeTenant.id),
+      JSON.stringify(users),
+    );
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_ADMIN_PASSWORD, activeTenant.id),
+      adminPassword,
+    );
+  }, [activeTenant, usersLoaded, users, adminPassword]);
 
   const catalog = useMemo(
     () => (baseCatalog ? applyAdminProducts(baseCatalog, adminProducts) : null),
@@ -1716,6 +1899,216 @@ export default function Home() {
   const canComplete =
     canCompleteSale && cart.length > 0 && cashPayment + 0.001 >= cashDue;
 
+  function resetRegisterSession() {
+    setActiveUserId("");
+    setLoginPassword("");
+    setAdminUnlocked(false);
+    setAdminPasswordInput("");
+    setMode("sale");
+    setCurrentScreen("Menü");
+    setCart([]);
+    setQuery("");
+    setActiveGroup(null);
+    setCustomDraft(null);
+    setEditingProductId(null);
+    setAdminProductQuery("");
+    setSelectedDiscountId("");
+    setCustomDiscountValue("");
+    setTip("");
+    setVoucherAmount("");
+    setCashReceived("");
+    setLastReceipt(null);
+  }
+
+  function loginTenant() {
+    const loginName = portalLoginName.trim().toLowerCase();
+    const password = portalPassword.trim();
+    const tenant = tenants.find(
+      (item) => item.loginName.trim().toLowerCase() === loginName,
+    );
+
+    if (!tenant || tenant.password !== password) {
+      setNotice("Unternehmenskennung oder Passwort ist falsch");
+      return;
+    }
+
+    resetRegisterSession();
+    setActiveTenantId(tenant.id);
+    setPortalPassword("");
+    setNotice(`${tenant.businessName} geöffnet`);
+  }
+
+  function logoutTenant() {
+    resetRegisterSession();
+    setActiveTenantId("");
+    setPortalLoginName("");
+    setPortalPassword("");
+    setNotice("Unternehmen abgemeldet");
+  }
+
+  function createTenantRegister() {
+    if (!canManageTenants) {
+      setNotice("Nur die Hauptkasse darf neue Unternehmenskassen anlegen");
+      return;
+    }
+
+    const businessName = normalizeName(tenantDraft.businessName);
+    const loginName = tenantDraft.loginName.trim().toLowerCase();
+    const password = tenantDraft.password.trim();
+    const adminPin = tenantDraft.adminPin.trim() || password;
+
+    if (!businessName || !loginName || !password) {
+      setNotice("Bitte Firmenname, Kennung und Passwort eingeben");
+      return;
+    }
+
+    if (tenants.some((tenant) => tenant.loginName.toLowerCase() === loginName)) {
+      setNotice("Diese Unternehmenskennung ist bereits vergeben");
+      return;
+    }
+
+    const tenant: Tenant = {
+      id: `tenant-${Date.now().toString(36)}-${Math.random()
+        .toString(36)
+        .slice(2, 7)}`,
+      businessName,
+      loginName,
+      password,
+      catalogMode: "empty",
+      createdAt: new Date().toISOString(),
+    };
+    const tenantReceiptConfig: ReceiptConfig = {
+      ...receiptConfig,
+      businessName,
+      addressLine: "",
+      footerText: "Vielen Dank fuer Ihren Besuch",
+    };
+
+    setTenants((items) => [...items, tenant]);
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_USERS, tenant.id),
+      JSON.stringify(createTenantUsers(adminPin)),
+    );
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_ADMIN_PASSWORD, tenant.id),
+      adminPin,
+    );
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_RECEIPT_CONFIG, tenant.id),
+      JSON.stringify(tenantReceiptConfig),
+    );
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_ADMIN_PRODUCTS, tenant.id),
+      JSON.stringify([]),
+    );
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_DISCOUNTS, tenant.id),
+      JSON.stringify([]),
+    );
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_TRANSACTIONS, tenant.id),
+      JSON.stringify([]),
+    );
+    setTenantDraft(DEFAULT_TENANT_DRAFT);
+    setNotice(`${tenant.businessName} wurde als leere Kasse angelegt`);
+  }
+
+  function exportTenantBackup() {
+    if (!canManageTenants) {
+      setNotice("Nur die Hauptkasse darf Mandantendaten exportieren");
+      return;
+    }
+
+    const data = Object.fromEntries(
+      tenants.map((tenant) => [
+        tenant.id,
+        Object.fromEntries(
+          TENANT_DATA_STORAGE_KEYS.map((key) => [
+            key,
+            readTenantStorage(key, tenant.id),
+          ]),
+        ),
+      ]),
+    );
+    const backup: TenantBackupFile = {
+      app: "peters-kasse",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      tenants,
+      data,
+    };
+
+    downloadTextFile(
+      `peters-kasse-mandanten-backup-${todayKey()}.json`,
+      JSON.stringify(backup, null, 2),
+      "application/json;charset=utf-8",
+    );
+    setNotice("Mandanten-Sicherung exportiert");
+  }
+
+  function importTenantBackup(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!canManageTenants) {
+      setNotice("Nur die Hauptkasse darf Mandantendaten importieren");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const backup = JSON.parse(String(reader.result ?? "")) as TenantBackupFile;
+        if (
+          backup.app !== "peters-kasse" ||
+          !Array.isArray(backup.tenants) ||
+          !backup.data
+        ) {
+          setNotice("Diese Sicherungsdatei passt nicht zu Peters Kasse");
+          return;
+        }
+
+        const importedTenants = normalizeStoredTenants(backup.tenants);
+        if (!importedTenants.length) {
+          setNotice("In der Sicherung wurden keine Kassen gefunden");
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `${importedTenants.length} Kassen aus der Sicherung importieren? Bestehende Kassen mit gleicher ID werden überschrieben.`,
+        );
+        if (!confirmed) {
+          setNotice("Import abgebrochen");
+          return;
+        }
+
+        for (const tenant of importedTenants) {
+          const tenantData = backup.data[tenant.id] ?? {};
+          for (const key of TENANT_DATA_STORAGE_KEYS) {
+            const value = tenantData[key];
+            if (typeof value === "string") {
+              window.localStorage.setItem(tenantStorageKey(key, tenant.id), value);
+            }
+          }
+        }
+
+        setTenants(importedTenants);
+        resetRegisterSession();
+        setActiveTenantId("");
+        setPortalLoginName("");
+        setPortalPassword("");
+        setNotice("Mandanten-Sicherung importiert. Bitte Unternehmen neu anmelden");
+      } catch {
+        setNotice("Sicherungsdatei konnte nicht gelesen werden");
+      }
+    };
+    reader.readAsText(file);
+  }
+
   function addLine(product: Product, customPrice?: number) {
     const unitPrice = customPrice ?? product.price ?? 0;
     const lineId = `${product.sku}-${product.name}-${unitPrice}-${product.taxRate}`;
@@ -1825,23 +2218,6 @@ export default function Home() {
     setVoucherAmount("");
     setCashReceived("");
     setNotice(`Bon ${transaction.id} abgeschlossen`);
-
-    if (printerCharacteristic) {
-      // Bluetooth-Drucker verbunden: Bon (falls gewuenscht) und
-      // Kassenschublade automatisch ansteuern.
-      if (receiptConfig.autoPrintOnSale) {
-        printReceiptBluetooth(transaction);
-      }
-      if (receiptConfig.autoOpenDrawer) {
-        openCashDrawer();
-      }
-    } else if (receiptConfig.autoPrintOnSale) {
-      // Kein Bluetooth-Drucker verbunden (z.B. iPad): automatisch den
-      // System-Druckdialog öffnen, sobald der Bon im DOM gerendert ist.
-      // Ein daran angeschlossener Bondrucker mit Schublade oeffnet diese
-      // in der Regel selbststaendig beim Druckvorgang/Schneiden.
-      window.setTimeout(() => window.print(), 300);
-    }
   }
 
   function importCatalog(event: ChangeEvent<HTMLInputElement>) {
@@ -1911,13 +2287,7 @@ export default function Home() {
     const csv = [header, ...lines]
       .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","))
       .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `tagesabschluss-${todayKey()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadTextFile(`tagesabschluss-${todayKey()}.csv`, csv, "text/csv;charset=utf-8");
   }
 
   function resetDay() {
@@ -2194,7 +2564,11 @@ export default function Home() {
       if (loginUserId === id) {
         setLoginUserId(remaining.find((user) => user.active)?.id ?? "");
       }
-      return remaining.length ? remaining : DEFAULT_USERS;
+      return remaining.length
+        ? remaining
+        : activeTenant?.id === DEFAULT_TENANT_ID
+          ? DEFAULT_USERS
+          : createTenantUsers(adminPassword);
     });
     setNotice("Benutzer entfernt");
   }
@@ -2327,53 +2701,29 @@ export default function Home() {
     );
   }
 
-  function handlePrinterDisconnected() {
-    setPrinterCharacteristic(null);
-    setPrinterDevice(null);
-    setPrinterDeviceName("");
-    setPrinterStatus("Bluetooth-Drucker getrennt");
-  }
-
   async function connectBluetoothPrinter() {
-    if (bluetoothUnsupportedOnDevice) {
-      setPrinterStatus(
-        "iPad/iPhone (Safari, Chrome & Co. unter iOS) unterstützen kein Web-Bluetooth – das ist eine Einschränkung von Apple, kein Fehler in der Kasse. Bitte einen AirPrint-fähigen Bondrucker im WLAN verwenden (Button „Bon drucken“ öffnet den Systemdruck-Dialog) oder die Kassenschublade direkt per Kabel am Drucker anschließen – sie öffnet dann automatisch beim Bondruck.",
-      );
-      return;
-    }
-
     const bluetooth = (navigator as Navigator & { bluetooth?: BluetoothLike })
       .bluetooth;
 
     if (!bluetooth) {
       setPrinterStatus(
-        "Bluetooth-Druck wird von diesem Browser nicht unterstützt. Bitte Chrome oder Edge verwenden, oder Browserdruck (Bon drucken) nutzen.",
+        "Bluetooth-Druck wird von diesem Browser nicht unterstützt. Browserdruck bleibt verfügbar.",
       );
       return;
     }
 
-    setPrinterConnecting(true);
     try {
-      setPrinterStatus("Drucker auswählen …");
+      setPrinterStatus("Drucker auswählen");
       const device = await bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices: BLUETOOTH_PRINTER_SERVICES,
       });
-
-      device.addEventListener?.("gattserverdisconnected", handlePrinterDisconnected);
-
       const server = await device.gatt?.connect();
       if (!server) {
-        throw new Error("Keine Bluetooth-GATT-Verbindung möglich");
+        throw new Error("Keine Bluetooth-GATT-Verbindung");
       }
 
       const services = await server.getPrimaryServices();
-      if (services.length === 0) {
-        throw new Error(
-          "Am Drucker wurden keine Bluetooth-Dienste gefunden. Bitte pruefen, ob der Drucker eingeschaltet und im Kopplungsmodus ist.",
-        );
-      }
-
       for (const service of services) {
         const characteristics = await service.getCharacteristics();
         const writable = characteristics.find(
@@ -2384,95 +2734,50 @@ export default function Home() {
 
         if (writable) {
           setPrinterCharacteristic(writable);
-          setPrinterDevice(device);
           setPrinterDeviceName(device.name || "Bluetooth-Drucker");
           setPrinterStatus("Bluetooth-Drucker verbunden");
           return;
         }
       }
 
-      setPrinterStatus(
-        "Verbunden, aber kein beschreibbarer Druckkanal gefunden. Dieser Drucker ist vermutlich ein klassischer Bluetooth-SPP-Drucker – diese werden von Web-Bluetooth nicht unterstützt. Bitte einen BLE/ESC-POS-fähigen Drucker verwenden oder Browserdruck nutzen.",
-      );
+      setPrinterStatus("Kein beschreibbarer Druckkanal gefunden");
     } catch (error) {
       setPrinterCharacteristic(null);
-      setPrinterDevice(null);
       setPrinterDeviceName("");
       setPrinterStatus(
         error instanceof Error
           ? `Bluetooth-Verbindung fehlgeschlagen: ${error.message}`
           : "Bluetooth-Verbindung fehlgeschlagen",
       );
-    } finally {
-      setPrinterConnecting(false);
-    }
-  }
-
-  function disconnectBluetoothPrinter() {
-    printerDevice?.gatt?.disconnect?.();
-    handlePrinterDisconnected();
-  }
-
-  async function writeToPrinter(payload: Uint8Array) {
-    if (!printerCharacteristic) {
-      setPrinterStatus("Bitte zuerst einen Bluetooth-Drucker verbinden");
-      return false;
-    }
-
-    try {
-      for (let offset = 0; offset < payload.length; offset += 180) {
-        const chunk = payload.slice(offset, offset + 180);
-        if (printerCharacteristic.writeValueWithoutResponse) {
-          await printerCharacteristic.writeValueWithoutResponse(chunk);
-        } else {
-          await printerCharacteristic.writeValue(chunk);
-        }
-      }
-      return true;
-    } catch (error) {
-      setPrinterStatus(
-        error instanceof Error
-          ? `Übertragung an Drucker fehlgeschlagen: ${error.message}`
-          : "Übertragung an Drucker fehlgeschlagen",
-      );
-      return false;
     }
   }
 
   async function writeBluetoothPrint(text: string) {
-    const payload = buildPrinterPayload(text, receiptConfig);
-    const ok = await writeToPrinter(payload);
-
-    if (ok) {
-      setPrinterStatus(
-        `Druckauftrag gesendet (${receiptConfig.widthMm} mm, ${
-          receiptConfig.printerCommandSet === "star" ? "Star" : "ESC/POS"
-        })`,
-      );
+    if (!printerCharacteristic) {
+      setPrinterStatus("Bitte zuerst einen Bluetooth-Drucker verbinden");
+      return;
     }
 
-    return ok;
+    const payload = buildPrinterPayload(text, receiptConfig);
+
+    for (let offset = 0; offset < payload.length; offset += 180) {
+      const chunk = payload.slice(offset, offset + 180);
+      if (printerCharacteristic.writeValueWithoutResponse) {
+        await printerCharacteristic.writeValueWithoutResponse(chunk);
+      } else {
+        await printerCharacteristic.writeValue(chunk);
+      }
+    }
+
+    setPrinterStatus(
+      `Druckauftrag gesendet (${receiptConfig.widthMm} mm, ${
+        receiptConfig.printerCommandSet === "star" ? "Star" : "ESC/POS"
+      })`,
+    );
   }
 
   async function printReceiptBluetooth(transaction: Transaction) {
-    return writeBluetoothPrint(buildReceiptText(transaction, receiptConfig));
-  }
-
-  async function openCashDrawer() {
-    if (!printerCharacteristic) {
-      setPrinterStatus(
-        bluetoothUnsupportedOnDevice
-          ? "Kassenschublade kann auf dem iPad nicht per Bluetooth angesteuert werden. Die Schublade am Bondrucker öffnet sich automatisch, sobald über diesen Drucker gedruckt wird (Kabel an Drucker anschließen)."
-          : "Bitte zuerst einen Bluetooth-Drucker verbinden, um die Kassenschublade zu öffnen",
-      );
-      return false;
-    }
-
-    const ok = await writeToPrinter(buildDrawerKickPayload(receiptConfig));
-    if (ok) {
-      setPrinterStatus("Kassenschublade geöffnet");
-    }
-    return ok;
+    await writeBluetoothPrint(buildReceiptText(transaction, receiptConfig));
   }
 
   async function printBluetoothTest() {
@@ -2583,7 +2888,72 @@ export default function Home() {
         deviceInfo?.standalone ? "installed-app" : "browser-app",
       ].join(" ")}
     >
-      {activeUser ? (
+      {!activeTenant ? (
+        <section className="portal-screen" aria-label="Unternehmensanmeldung">
+          <div className="portal-panel">
+            <div className="portal-brand">
+              <Image
+                alt="Opa Peters"
+                height={120}
+                priority
+                src="/opa-peters-logo.png"
+                width={120}
+              />
+              <div>
+                <p className="eyebrow">Kassenportal</p>
+                <h1>Opa Peters Kassensystem</h1>
+              </div>
+            </div>
+            <div className="portal-copy">
+              <strong>Unternehmen anmelden</strong>
+              <span>{notice}</span>
+            </div>
+            <div className="field-grid portal-fields">
+              <label>
+                Unternehmenskennung
+                <input
+                  autoComplete="username"
+                  autoFocus
+                  onChange={(event) => setPortalLoginName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      loginTenant();
+                    }
+                  }}
+                  placeholder="z. B. opa"
+                  value={portalLoginName}
+                />
+              </label>
+              <label>
+                Passwort
+                <input
+                  autoComplete="current-password"
+                  onChange={(event) => setPortalPassword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      loginTenant();
+                    }
+                  }}
+                  type="password"
+                  value={portalPassword}
+                />
+              </label>
+            </div>
+            <button
+              className="complete-button"
+              disabled={!tenantsLoaded}
+              onClick={loginTenant}
+              type="button"
+            >
+              Unternehmen öffnen
+            </button>
+            <div className="portal-help">
+              <span>Zugang</span>
+              <strong>vom Admin vergeben</strong>
+            </div>
+          </div>
+        </section>
+      ) : activeUser ? (
         <>
       <header className="topbar">
         <div>
@@ -2885,18 +3255,23 @@ export default function Home() {
                 <div className="report-header">
                   <div>
                     <p className="eyebrow">Admin</p>
-                    <h2>Produkte, Rabatte, Benutzer & Bons</h2>
+                    <h2>
+                      {canManageTenants
+                        ? "Produkte, Rabatte, Benutzer, Bons & Kassen"
+                        : "Produkte, Rabatte, Benutzer & Bons"}
+                    </h2>
                   </div>
                   <div className="admin-summary">
                     {adminProducts.length} eigene Produkte · {discounts.length} Rabatte ·{" "}
                     {users.length} Benutzer
+                    {canManageTenants ? ` · ${tenants.length} Kassen` : ""}
                   </div>
                 </div>
 
                 <div className="admin-menu" aria-label="Adminmenue">
-                  {ADMIN_SECTIONS.map((section) => (
+                  {visibleAdminSections.map((section) => (
                     <button
-                      className={adminSection === section.id ? "active" : ""}
+                      className={activeAdminSection === section.id ? "active" : ""}
                       key={section.id}
                       onClick={() => setAdminSection(section.id)}
                       type="button"
@@ -2906,7 +3281,7 @@ export default function Home() {
                   ))}
                 </div>
 
-                {adminSection === "products" ? (
+                {activeAdminSection === "products" ? (
             <div className="admin-grid">
               <div className="admin-block">
                 <h3>{isEditingProduct ? "Produkt bearbeiten" : "Produkt hinzufügen"}</h3>
@@ -3150,7 +3525,7 @@ export default function Home() {
 
                 ) : null}
 
-                {adminSection === "discounts" ? (
+                {activeAdminSection === "discounts" ? (
             <div className="admin-grid admin-grid-single">
               <div className="admin-block">
                 <h3>Rabattvorlagen</h3>
@@ -3239,7 +3614,7 @@ export default function Home() {
             </div>
                 ) : null}
 
-                {adminSection === "users" ? (
+                {activeAdminSection === "users" ? (
             <div className="admin-grid admin-grid-single">
               <div className="admin-block">
                 <h3>Benutzer & Rechte</h3>
@@ -3451,7 +3826,130 @@ export default function Home() {
 
                 ) : null}
 
-                {adminSection === "receipts" ? (
+                {canManageTenants && activeAdminSection === "tenants" ? (
+            <div className="admin-grid admin-grid-single">
+              <div className="admin-block">
+                <h3>Unternehmen & leere Musterkassen</h3>
+                <p className="admin-note">
+                  Neue Unternehmen erhalten eine eigene Anmeldung und eine leere
+                  Kasse ohne vorangelegte Produkte. Bon- und Druckeinstellungen
+                  werden als Startpunkt aus dieser Kasse übernommen.
+                </p>
+                <div className="field-grid">
+                  <label>
+                    Firmenname
+                    <input
+                      onChange={(event) =>
+                        setTenantDraft({
+                          ...tenantDraft,
+                          businessName: event.target.value,
+                        })
+                      }
+                      placeholder="z. B. Muster Cafe GmbH"
+                      value={tenantDraft.businessName}
+                    />
+                  </label>
+                  <label>
+                    Unternehmenskennung
+                    <input
+                      autoComplete="off"
+                      onChange={(event) =>
+                        setTenantDraft({
+                          ...tenantDraft,
+                          loginName: event.target.value,
+                        })
+                      }
+                      placeholder="z. B. muster-cafe"
+                      value={tenantDraft.loginName}
+                    />
+                  </label>
+                  <label>
+                    Firmenpasswort
+                    <input
+                      autoComplete="new-password"
+                      onChange={(event) =>
+                        setTenantDraft({
+                          ...tenantDraft,
+                          password: event.target.value,
+                        })
+                      }
+                      type="password"
+                      value={tenantDraft.password}
+                    />
+                  </label>
+                  <label>
+                    Manager-PIN in der neuen Kasse
+                    <input
+                      autoComplete="new-password"
+                      inputMode="numeric"
+                      onChange={(event) =>
+                        setTenantDraft({
+                          ...tenantDraft,
+                          adminPin: event.target.value,
+                        })
+                      }
+                      placeholder="leer = Firmenpasswort"
+                      type="password"
+                      value={tenantDraft.adminPin}
+                    />
+                  </label>
+                </div>
+                <button
+                  className="admin-primary"
+                  onClick={createTenantRegister}
+                  type="button"
+                >
+                  Leere Kasse für Unternehmen anlegen
+                </button>
+                <div className="tenant-backup-panel">
+                  <h4>Mandanten-Sicherung</h4>
+                  <p className="admin-note">
+                    Exportiert alle angelegten Kassen inklusive lokaler
+                    Produkte, Benutzer, Bons und Passwörter. Die Datei sicher
+                    aufbewahren und nicht öffentlich teilen.
+                  </p>
+                  <div className="report-actions">
+                    <button
+                      className="admin-secondary"
+                      onClick={exportTenantBackup}
+                      type="button"
+                    >
+                      Alle Kassen exportieren
+                    </button>
+                    <label className="import-button" htmlFor="tenant-backup-import">
+                      Sicherung importieren
+                    </label>
+                    <input
+                      accept=".json,application/json"
+                      className="hidden-input"
+                      id="tenant-backup-import"
+                      onChange={importTenantBackup}
+                      type="file"
+                    />
+                  </div>
+                </div>
+                <div className="tenant-list">
+                  {tenants.map((tenant) => (
+                    <div className="tenant-row" key={tenant.id}>
+                      <div>
+                        <strong>{tenant.businessName}</strong>
+                        <span>
+                          Kennung: {tenant.loginName} ·{" "}
+                          {tenant.catalogMode === "seed"
+                            ? "bestehende Opa-Peters-Kasse"
+                            : "leere Musterkasse"}
+                        </span>
+                      </div>
+                      <span>{tenant.id === activeTenantId ? "geöffnet" : "bereit"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+                ) : null}
+
+                {activeAdminSection === "receipts" ? (
             <div className="admin-grid">
               <div className="admin-block">
                 <h3>Bonlayout</h3>
@@ -3627,32 +4125,6 @@ export default function Home() {
                     />
                     Bon nach Druck schneiden
                   </label>
-                  <label className="checkbox-field">
-                    <input
-                      checked={receiptConfig.autoPrintOnSale}
-                      onChange={(event) =>
-                        setReceiptConfig({
-                          ...receiptConfig,
-                          autoPrintOnSale: event.target.checked,
-                        })
-                      }
-                      type="checkbox"
-                    />
-                    Bon bei jedem Verkauf automatisch erzeugen/drucken
-                  </label>
-                  <label className="checkbox-field">
-                    <input
-                      checked={receiptConfig.autoOpenDrawer}
-                      onChange={(event) =>
-                        setReceiptConfig({
-                          ...receiptConfig,
-                          autoOpenDrawer: event.target.checked,
-                        })
-                      }
-                      type="checkbox"
-                    />
-                    Kassenschublade bei jedem Verkauf automatisch öffnen
-                  </label>
                 </div>
                 <div className="admin-target">
                   {
@@ -3680,19 +4152,8 @@ export default function Home() {
                   <strong>{printerDeviceName || printerStatus}</strong>
                 </div>
                 <div className="report-actions">
-                  <button
-                    disabled={printerConnecting}
-                    onClick={connectBluetoothPrinter}
-                    type="button"
-                  >
-                    {printerConnecting ? "Verbinde …" : "Bluetooth verbinden"}
-                  </button>
-                  <button
-                    disabled={!printerCharacteristic}
-                    onClick={disconnectBluetoothPrinter}
-                    type="button"
-                  >
-                    Trennen
+                  <button onClick={connectBluetoothPrinter} type="button">
+                    Bluetooth verbinden
                   </button>
                   <button
                     disabled={!printerCharacteristic}
@@ -3701,32 +4162,12 @@ export default function Home() {
                   >
                     Testdruck
                   </button>
-                  <button
-                    disabled={!printerCharacteristic}
-                    onClick={openCashDrawer}
-                    type="button"
-                  >
-                    Kassenschublade öffnen
-                  </button>
                 </div>
-                {bluetoothUnsupportedOnDevice ? (
-                  <p className="admin-note warning">
-                    Dieses iPad/iPhone unterstützt kein Web-Bluetooth (Einschränkung
-                    von Apple/WebKit, betrifft alle Browser unter iOS). Für Druck
-                    und Kassenschublade bitte einen AirPrint-fähigen Bondrucker im
-                    selben WLAN einrichten: Der Button „Bon drucken“ öffnet den
-                    Systemdruck-Dialog des iPads. Die Kassenschublade per Kabel am
-                    Drucker anschließen – sie öffnet in der Regel automatisch beim
-                    Bondruck.
-                  </p>
-                ) : (
-                  <p className="admin-note">
-                    Web-Bluetooth funktioniert mit kompatiblen BLE/ESC-POS-Druckern
-                    (z. B. Star mC-Print im BLE-Modus). Klassische
-                    Bluetooth-SPP-Drucker ohne BLE-Profil werden vom Browser nicht
-                    unterstützt – hier hilft Browserdruck oder ein LAN/AirPrint-Weg.
-                  </p>
-                )}
+                <p className="admin-note">
+                  Web-Bluetooth funktioniert vorerst mit kompatiblen BLE/ESC-POS
+                  Druckern. Klassische Bluetooth-SPP-Drucker brauchen spaeter
+                  eine native Bridge oder Hersteller-SDK.
+                </p>
                 <p className="admin-note warning">
                   Der TSE-Stempel ist nur eine Simulation und nicht rechtssicher.
                   Die echte TSE-Schnittstelle kann spaeter an derselben Stelle
@@ -4066,13 +4507,6 @@ export default function Home() {
               <button onClick={() => window.print()} type="button">
                 Bon drucken
               </button>
-              <button
-                disabled={!printerCharacteristic}
-                onClick={openCashDrawer}
-                type="button"
-              >
-                Kassenschublade öffnen
-              </button>
               <button onClick={() => setLastReceipt(null)} type="button">
                 Schließen
               </button>
@@ -4086,7 +4520,7 @@ export default function Home() {
           <div className="login-panel">
             <div>
               <p className="eyebrow">Anmeldung</p>
-              <h1>{receiptConfig.businessName}</h1>
+              <h1>{activeTenant.businessName}</h1>
             </div>
             <div className="login-status">
               <span>
@@ -4152,6 +4586,9 @@ export default function Home() {
                 type="button"
               >
                 Anmelden
+              </button>
+              <button className="admin-secondary" onClick={logoutTenant} type="button">
+                Unternehmen wechseln
               </button>
               {installPrompt && !deviceInfo?.standalone ? (
                 <button

@@ -16,6 +16,16 @@ export const metadata: Metadata = {
   title: "Peters Kasse",
   description: "Lokale Touch-Kasse aus Lightspeed K-Series Exportdaten.",
   applicationName: "Peters Kasse",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

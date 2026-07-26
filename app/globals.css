@@ -69,6 +69,76 @@ button:disabled {
     max(14px, env(safe-area-inset-left));
 }
 
+.portal-screen {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(36, 71, 245, 0.08)),
+    #f4f6fa;
+  display: flex;
+  justify-content: center;
+  min-height: calc(100vh - 28px);
+  min-height: calc(100dvh - 28px);
+  padding: 20px;
+}
+
+.portal-panel {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 18px;
+  max-width: 560px;
+  padding: 24px;
+  width: 100%;
+}
+
+.portal-brand {
+  align-items: center;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.portal-brand img {
+  background: #000000;
+  border-radius: 8px;
+  display: block;
+  height: 120px;
+  object-fit: contain;
+  padding: 10px;
+  width: 120px;
+}
+
+.portal-copy {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.portal-copy span,
+.portal-help span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.portal-fields {
+  grid-template-columns: 1fr;
+}
+
+.portal-help {
+  align-items: center;
+  background: #fff7e8;
+  border: 1px solid #f2cf92;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
 .login-screen {
   align-items: center;
   display: flex;
@@ -773,7 +843,7 @@ h3 {
   border-radius: 8px;
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: 6px;
 }
 
@@ -1038,6 +1108,47 @@ h3 {
   font-weight: 800;
   min-height: 36px;
   padding: 0 10px;
+}
+
+.tenant-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tenant-backup-panel {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.tenant-backup-panel h4 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.tenant-row {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px;
+}
+
+.tenant-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.tenant-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .admin-password-box {
@@ -1432,6 +1543,7 @@ h3 {
 
   .admin-row,
   .user-row,
+  .tenant-row,
   .admin-password-box {
     grid-template-columns: 1fr;
   }
@@ -1452,6 +1564,12 @@ h3 {
 
   .permission-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portal-brand {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
   }
 }
 
@@ -1499,162 +1617,6 @@ h3 {
   .rail-title,
   .rail-footer {
     grid-column: 1 / -1;
-  }
-}
-
-/* ==========================================================================
-   iPad-Optimierung
-   Groessere Schrift, Buttons und Eingabefelder fuer bequeme Touch-Bedienung
-   auf iPad (Hoch- und Querformat). Greift ueber die vom Skript gesetzte
-   Klasse ".device-tablet" (erkennt iPad zuverlaessig, auch im "Desktop-
-   Website"-Modus von Safari) sowie generell fuer alle Touch-Geraete.
-   ========================================================================== */
-
-.device-tablet,
-.touch-device {
-  font-size: 17px;
-}
-
-/* Alle Buttons: grosszuegige Tippflaeche (Apple HIG empfiehlt min. 44pt) */
-.device-tablet button {
-  font-size: 16px;
-  min-height: 48px;
-}
-
-.device-tablet input,
-.device-tablet select,
-.device-tablet textarea {
-  /* font-size >=16px verhindert das automatische Hineinzoomen von Safari
-     beim Fokussieren eines Eingabefelds */
-  font-size: 17px;
-  min-height: 50px;
-}
-
-.device-tablet .search-box input,
-.device-tablet .adjustments input,
-.device-tablet .adjustments select,
-.device-tablet .field-grid input,
-.device-tablet .field-grid select,
-.device-tablet .login-password input,
-.device-tablet .admin-lock input,
-.device-tablet .admin-password-box input,
-.device-tablet .split-inputs input,
-.device-tablet .cash-input input,
-.device-tablet .user-pin-field input,
-.device-tablet .modal input {
-  border-radius: 10px;
-  min-height: 52px;
-  padding: 0 16px;
-}
-
-.device-tablet .mode-tabs button,
-.device-tablet .payment-tabs button {
-  font-size: 16px;
-  min-height: 52px;
-  padding: 0 16px;
-}
-
-.device-tablet .product-button {
-  border-radius: 10px;
-  min-height: 128px;
-  padding: 16px;
-}
-
-.device-tablet .button-main {
-  font-size: 19px;
-}
-
-.device-tablet .button-meta {
-  font-size: 14px;
-}
-
-.device-tablet .qty-controls {
-  gap: 8px;
-  grid-template-columns: 44px 44px 44px;
-}
-
-.device-tablet .qty-controls button {
-  border-radius: 8px;
-  font-size: 22px;
-  height: 44px;
-}
-
-.device-tablet .qty-controls span {
-  font-size: 17px;
-}
-
-.device-tablet .cart-line {
-  grid-template-columns: minmax(0, 1fr) 148px auto;
-  padding: 14px;
-}
-
-.device-tablet .cart-line span {
-  font-size: 14px;
-}
-
-.device-tablet .icon-action {
-  font-size: 28px;
-  height: 48px;
-  width: 48px;
-}
-
-.device-tablet .option-strip button,
-.device-tablet .report-actions button,
-.device-tablet .modal-actions button {
-  font-size: 16px;
-  min-height: 50px;
-  padding: 0 18px;
-}
-
-.device-tablet .login-user-button {
-  min-height: 66px;
-}
-
-.device-tablet .install-app-button,
-.device-tablet .logout-button {
-  font-size: 14px;
-  min-height: 44px;
-  padding: 0 14px;
-}
-
-.device-tablet h1 {
-  font-size: 26px;
-}
-
-.device-tablet h2 {
-  font-size: 24px;
-}
-
-.device-tablet h3 {
-  font-size: 18px;
-}
-
-.device-tablet .eyebrow {
-  font-size: 13px;
-}
-
-.device-tablet .checkbox-field {
-  font-size: 16px;
-  gap: 10px;
-}
-
-.device-tablet .checkbox-field input[type="checkbox"] {
-  height: 24px;
-  min-height: 0;
-  width: 24px;
-}
-
-.device-tablet .admin-row-actions button,
-.device-tablet .admin-row button.danger,
-.device-tablet .user-row button.danger {
-  min-height: 50px;
-}
-
-/* Grosszuegigerer Produktraster im iPad-Querformat, damit die Kacheln
-   angenehm gross bleiben statt sich unnoetig zu vervielfachen */
-@media (min-width: 900px) {
-  .device-tablet .product-grid {
-    grid-template-columns: repeat(3, minmax(200px, 1fr));
   }
 }
 
