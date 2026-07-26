@@ -7,6 +7,7 @@ GitHub-Repository liegen.
 
 Richtig:
 
+- .openai/hosting.json
 - app/page.tsx
 - app/globals.css
 - public/data/catalog.csv
@@ -51,6 +52,9 @@ Wichtig: Diese Ordner nicht hochladen, falls sie bei dir entstehen:
 - .wrangler
 - outputs
 
+Hinweis: `.openai` ist ein versteckter Ordner. Wenn er bei GitHub fehlt, baut
+die App in dieser Version trotzdem mit einer lokalen Strato-Einstellung.
+
 Danach `Commit changes` klicken.
 
 ## Schritt 4: Strato-Voraussetzung pruefen
@@ -77,8 +81,9 @@ ssh benutzer@deine-server-adresse
 Repository klonen:
 
 ```bash
-git clone https://github.com/DEIN-GITHUB-NAME/peters-kasse.git
-cd peters-kasse
+mkdir -p /opt/peters-kasse
+cd /opt/peters-kasse
+git clone https://github.com/kim-ole-peters-source/Kasse-.git .
 ```
 
 Node installieren, falls `nvm` vorhanden ist:
@@ -100,7 +105,7 @@ npm run build
 Zum Testen:
 
 ```bash
-npm run start
+PORT=3005 npm run start
 ```
 
 Fuer dauerhaften Betrieb empfohlen:
@@ -120,11 +125,11 @@ Ein Nginx-Beispiel liegt in `strato-nginx-peters-kasse.conf`.
 Wenn du spaeter neue Versionen bei GitHub hochlaedst:
 
 ```bash
-cd peters-kasse
+cd /opt/peters-kasse
 git pull
 npm ci
 npm run build
-pm2 restart peters-kasse
+pm2 restart peters-kasse --update-env
 ```
 
 ## Erste Anmeldung
