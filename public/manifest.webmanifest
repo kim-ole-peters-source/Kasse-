@@ -1,0 +1,20 @@
+{
+  "name": "Peters Kasse",
+  "short_name": "Kasse",
+  "description": "Lokale Touch-Kasse fuer Verkauf, Bons, Rabatte und Adminverwaltung.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef1f5",
+  "theme_color": "#2447f5",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
