@@ -455,6 +455,44 @@ function preferredLoginUserId(users: PosUser[]) {
   );
 }
 
+function tileTextColor(hexColor: string) {
+  const normalized = hexColor.replace("#", "");
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((char) => `${char}${char}`)
+          .join("")
+      : normalized;
+  const rgb = Number.parseInt(value, 16);
+
+  if (Number.isNaN(rgb)) {
+    return "#ffffff";
+  }
+
+  const red = (rgb >> 16) & 255;
+  const green = (rgb >> 8) & 255;
+  const blue = rgb & 255;
+  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+
+  return luminance > 0.64 ? "#171717" : "#ffffff";
+}
+
+function tileStyle(colorKey: string) {
+  const color = colorMap[colorKey] ?? colorMap.BLUE;
+
+  return {
+    "--tile-color": color,
+    "--tile-text": tileTextColor(color),
+  } as React.CSSProperties;
+}
+
+function screenTileStyle(screenKey: string) {
+  const palette = ["BLUE", "GREEN", "BROWN", "ORANGE", "PURPLE", "YELLOW", "WHITE"];
+  const hash = [...screenKey].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return tileStyle(palette[hash % palette.length]);
+}
+
 const DEFAULT_USER_DRAFT: UserDraft = {
   username: "",
   firstName: "",
@@ -2039,11 +2077,6 @@ export default function Home() {
   }
 
   function loginTenant() {
-    if (!tenantsLoaded) {
-      setNotice("Kassen werden noch geladen");
-      return;
-    }
-
     const loginName = portalLoginName.trim().toLowerCase();
     const password = portalPassword.trim();
 
@@ -2052,7 +2085,8 @@ export default function Home() {
       return;
     }
 
-    const tenant = tenants.find(
+    const availableTenants = tenants.length > 0 ? tenants : DEFAULT_TENANTS;
+    const tenant = availableTenants.find(
       (item) => item.loginName.trim().toLowerCase() === loginName,
     );
     const savedAdminPassword = tenant
@@ -2980,7 +3014,7 @@ export default function Home() {
           className="product-button group-button"
           key={`group-${sku}`}
           onClick={() => setActiveGroup(group)}
-          style={{ "--tile-color": colorMap[group.color] ?? colorMap.BLUE } as React.CSSProperties}
+          style={tileStyle(group.color)}
           type="button"
         >
           <span className="button-main">{group.buttonName}</span>
@@ -3000,7 +3034,7 @@ export default function Home() {
         disabled={!canCompleteSale}
         key={`product-${sku}`}
         onClick={() => handleProduct(product)}
-        style={{ "--tile-color": colorMap[product.color] ?? colorMap.BLUE } as React.CSSProperties}
+        style={tileStyle(product.color)}
         type="button"
       >
         <span className="button-main">{product.buttonName}</span>
@@ -3150,15 +3184,10 @@ export default function Home() {
             </div>
             <button
               className="complete-button"
-              disabled={!tenantsLoaded}
               onClick={loginTenant}
               type="button"
             >
-              {!tenantsLoaded
-                ? "Kassen werden geladen"
-                : portalArea === "admin"
-                  ? "Adminbereich öffnen"
-                  : "Kassenbereich öffnen"}
+              {portalArea === "admin" ? "Adminbereich öffnen" : "Kassenbereich öffnen"}
             </button>
             <div className="portal-help">
               <span>Zugang</span>
@@ -3202,12 +3231,12 @@ export default function Home() {
         {!isAdminPortal ? (
           <button
             aria-expanded={cashMenuOpen}
-            aria-label={cashMenuOpen ? "Bereichsmenü schließen" : "Bereichsmenü öffnen"}
+            aria-label={cashMenuOpen ? "Kopfbereich einklappen" : "Kopfbereich ausklappen"}
             className="cash-menu-toggle"
             onClick={() => setCashMenuOpen((isOpen) => !isOpen)}
             type="button"
           >
-            {cashMenuOpen ? "Bereiche schließen" : "Bereiche"}
+            {cashMenuOpen ? "Kopf einklappen" : "Kopf öffnen"}
           </button>
         ) : null}
         {!isAdminPortal && activeUser ? (
@@ -3408,6 +3437,7 @@ export default function Home() {
                         setQuery("");
                         setActiveGroup(null);
                       }}
+                      style={screenTileStyle(button.key)}
                       type="button"
                     >
                       <span className="button-main">{button.label}</span>

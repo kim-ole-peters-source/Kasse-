@@ -3,8 +3,8 @@
 	"appName": "Peters Kasse",
 	"webDir": "native-fallback",
 	"server": {
-		"url": "http://localhost:3008",
-		"cleartext": true,
+		"url": "https://kcpremium.de",
+		"cleartext": false,
 		"allowNavigation": [
 			"kcpremium.de",
 			"*.kcpremium.de",

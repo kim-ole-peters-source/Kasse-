@@ -569,10 +569,11 @@ h3 {
 
 .product-button {
   --tile-color: var(--primary);
+  --tile-text: #ffffff;
   align-items: flex-start;
-  background: #ffffff;
-  border: 1px solid #cfd7e3;
-  border-left: 7px solid var(--tile-color);
+  background: color-mix(in srgb, var(--tile-color) 12%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--tile-color) 45%, #cfd7e3);
+  border-bottom: 6px solid var(--tile-color);
   border-radius: 8px;
   color: var(--foreground);
   display: flex;
@@ -599,16 +600,20 @@ h3 {
 }
 
 .product-button.filled {
-  background: color-mix(in srgb, var(--tile-color) 10%, white);
+  background: var(--tile-color);
+  color: var(--tile-text);
 }
 
 .screen-button {
-  background: #f4f7fd;
-  border-left-color: var(--primary);
+  background: var(--tile-color);
+  border-color: color-mix(in srgb, var(--tile-color) 74%, #111111);
+  color: var(--tile-text);
 }
 
 .group-button {
-  background: #fffdf8;
+  background: color-mix(in srgb, var(--tile-color) 86%, #ffffff);
+  border-color: color-mix(in srgb, var(--tile-color) 74%, #111111);
+  color: var(--tile-text);
 }
 
 .button-main {
@@ -619,7 +624,7 @@ h3 {
 }
 
 .button-meta {
-  color: var(--muted);
+  color: color-mix(in srgb, currentColor 72%, transparent);
   font-size: 13px;
   font-weight: 700;
 }
@@ -2498,14 +2503,15 @@ h3 {
 }
 
 .cash-topbar {
+  border-color: #d3d8e2;
   gap: 8px 10px;
   grid-template-columns: minmax(0, 1fr) auto auto;
-  padding: 8px 10px;
+  padding: 7px 9px;
 }
 
 .cash-layout-active {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
@@ -2546,7 +2552,7 @@ h3 {
 
 .cash-menu-toggle,
 .cash-user-chip {
-  min-height: 42px;
+  min-height: 40px;
 }
 
 .cash-menu-toggle {
@@ -2569,6 +2575,39 @@ h3 {
 
 .cash-topbar-open .cash-menu-toggle::after {
   content: "^";
+}
+
+.cash-topbar-closed {
+  box-shadow: var(--shadow-soft);
+  padding: 4px 6px;
+}
+
+.cash-topbar-closed .topbar-logo,
+.cash-topbar-closed h1 {
+  display: none;
+}
+
+.cash-topbar-closed .topbar-brand {
+  align-items: center;
+  border-left: 5px solid var(--primary);
+  min-height: 34px;
+  padding-left: 9px;
+}
+
+.cash-topbar-closed .eyebrow {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 900;
+  margin: 0;
+}
+
+.cash-topbar-closed .cash-menu-toggle,
+.cash-topbar-closed .cash-user-chip {
+  min-height: 34px;
+}
+
+.cash-topbar-open {
+  border-bottom: 3px solid var(--primary);
 }
 
 .cash-user-chip {
@@ -2661,6 +2700,11 @@ h3 {
 .cash-topbar + .workspace .menu-area,
 .cash-topbar + .workspace .cart-panel {
   overflow: hidden;
+}
+
+.cash-topbar + .workspace .cart-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
 }
 
 .cash-topbar + .workspace .report-area {

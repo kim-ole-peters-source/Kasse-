@@ -35,7 +35,7 @@ test("server-renders the POS shell", async () => {
   assert.match(html, /Kassenbereich/i);
   assert.match(html, /Adminbereich/i);
   assert.match(html, /Unternehmenskennung/i);
-  assert.match(html, /Kassen werden geladen/i);
+  assert.match(html, /Kassenbereich öffnen/i);
   assert.match(html, /opa-peters-logo\.png/i);
   assert.match(html, /vom Admin vergeben/i);
   assert.doesNotMatch(html, /opa \/ 1902/i);
