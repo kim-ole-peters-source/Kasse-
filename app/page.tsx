@@ -24,6 +24,27 @@ type AdminProduct = Product & {
   baseSku?: string;
 };
 
+type AdminProductGroup = {
+  id: string;
+  sku: string;
+  name: string;
+  buttonName: string;
+  color: string;
+  screenKey: string;
+  childSkus: string[];
+  createdAt: string;
+  source?: "custom" | "catalog";
+  baseSku?: string;
+};
+
+type AdminScreen = {
+  id: string;
+  parentKey: string;
+  name: string;
+  key: string;
+  createdAt: string;
+};
+
 type ProductGroup = {
   sku: string;
   name: string;
@@ -64,9 +85,16 @@ type PaymentSplit = {
 };
 
 type PortalArea = "cash" | "admin";
+type CashMode = "sale" | "report" | "receipts" | "admin";
 type DeviceKind = "phone" | "tablet" | "desktop";
 type DiscountType = "percent" | "amount";
-type AdminSection = "products" | "discounts" | "users" | "receipts" | "tenants";
+type AdminSection =
+  | "products"
+  | "groups"
+  | "discounts"
+  | "users"
+  | "receipts"
+  | "tenants";
 type PrinterCommandSet = "escpos" | "star";
 type PrinterProfile =
   | "star-mcprint"
@@ -173,6 +201,15 @@ type AdminProductDraft = {
   subScreenName: string;
 };
 
+type AdminGroupDraft = {
+  sku: string;
+  name: string;
+  buttonName: string;
+  color: string;
+  screenKey: string;
+  childSkus: string;
+};
+
 type ReceiptConfig = {
   businessName: string;
   addressLine: string;
@@ -221,6 +258,7 @@ type DeviceInfo = {
   kind: DeviceKind;
   label: string;
   touch: boolean;
+  appleMobile: boolean;
   standalone: boolean;
   orientation: "hoch" | "quer";
   width: number;
@@ -263,6 +301,8 @@ const DEFAULT_TENANT_ID = "opa-peters";
 const STORAGE_TENANTS = "peters-kasse-tenants-v1";
 const STORAGE_TRANSACTIONS = "peters-kasse-transactions-v1";
 const STORAGE_ADMIN_PRODUCTS = "peters-kasse-admin-products-v1";
+const STORAGE_ADMIN_GROUPS = "peters-kasse-admin-groups-v1";
+const STORAGE_ADMIN_SCREENS = "peters-kasse-admin-screens-v1";
 const STORAGE_RECEIPT_CONFIG = "peters-kasse-receipt-config-v1";
 const STORAGE_DISCOUNTS = "peters-kasse-discounts-v1";
 const STORAGE_USERS = "peters-kasse-users-v1";
@@ -270,6 +310,8 @@ const STORAGE_ADMIN_PASSWORD = "peters-kasse-admin-password-v1";
 const TENANT_DATA_STORAGE_KEYS = [
   STORAGE_TRANSACTIONS,
   STORAGE_ADMIN_PRODUCTS,
+  STORAGE_ADMIN_GROUPS,
+  STORAGE_ADMIN_SCREENS,
   STORAGE_RECEIPT_CONFIG,
   STORAGE_DISCOUNTS,
   STORAGE_USERS,
@@ -297,6 +339,7 @@ const DEFAULT_RECEIPT_CONFIG: ReceiptConfig = {
 
 const ADMIN_SECTIONS: { id: AdminSection; label: string }[] = [
   { id: "products", label: "Produkte" },
+  { id: "groups", label: "Warengruppen" },
   { id: "discounts", label: "Rabatte" },
   { id: "users", label: "Benutzer" },
   { id: "receipts", label: "Bons" },
@@ -337,6 +380,15 @@ const DEFAULT_ADMIN_DRAFT: AdminProductDraft = {
   style: "Akzent",
   screenKey: "Menü",
   subScreenName: "",
+};
+
+const DEFAULT_ADMIN_GROUP_DRAFT: AdminGroupDraft = {
+  sku: "",
+  name: "",
+  buttonName: "",
+  color: "BLUE",
+  screenKey: "Menü",
+  childSkus: "",
 };
 
 const DEFAULT_DISCOUNTS: DiscountPreset[] = [
@@ -455,35 +507,12 @@ function preferredLoginUserId(users: PosUser[]) {
   );
 }
 
-function tileTextColor(hexColor: string) {
-  const normalized = hexColor.replace("#", "");
-  const value =
-    normalized.length === 3
-      ? normalized
-          .split("")
-          .map((char) => `${char}${char}`)
-          .join("")
-      : normalized;
-  const rgb = Number.parseInt(value, 16);
-
-  if (Number.isNaN(rgb)) {
-    return "#ffffff";
-  }
-
-  const red = (rgb >> 16) & 255;
-  const green = (rgb >> 8) & 255;
-  const blue = rgb & 255;
-  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-
-  return luminance > 0.64 ? "#171717" : "#ffffff";
-}
-
 function tileStyle(colorKey: string) {
   const color = colorMap[colorKey] ?? colorMap.BLUE;
 
   return {
     "--tile-color": color,
-    "--tile-text": tileTextColor(color),
+    "--tile-text": "#20242b",
   } as React.CSSProperties;
 }
 
@@ -589,18 +618,18 @@ const SAMPLE_PRODUCTS: Omit<AdminProduct, "id" | "createdAt">[] = [
 ];
 
 const colorMap: Record<string, string> = {
-  BLUE: "#2f5cf6",
-  DARK_RED: "#ce0b2d",
-  LIGHT_RED: "#ff4f68",
-  PINK: "#f48a96",
-  GREEN: "#36b37e",
-  YELLOW: "#f5b24e",
-  ORANGE: "#ff8a5b",
-  BROWN: "#d2a679",
-  BLACK: "#364247",
-  DARK_GRAY: "#6f766f",
-  WHITE: "#e6eaff",
-  PURPLE: "#8589e8",
+  BLUE: "#1249e8",
+  DARK_RED: "#ca0d30",
+  LIGHT_RED: "#ff5264",
+  PINK: "#f08b98",
+  GREEN: "#2fa47b",
+  YELLOW: "#efb156",
+  ORANGE: "#d4835c",
+  BROWN: "#b89068",
+  BLACK: "#374348",
+  DARK_GRAY: "#687069",
+  WHITE: "#ffffff",
+  PURPLE: "#7075d9",
 };
 
 const currency = new Intl.NumberFormat("de-DE", {
@@ -682,6 +711,39 @@ function normalizeName(value: string) {
     .replace(/\s+/g, " ")
     .replace(/^Michshake$/i, "Milchshake")
     .trim();
+}
+
+function slugCode(value: string) {
+  return (
+    normalizeName(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 28) || Date.now().toString(36).toUpperCase()
+  );
+}
+
+function uniqueCode(prefix: string, value: string, usedCodes: Set<string>) {
+  const base = `${prefix}-${slugCode(value)}`;
+  let code = base;
+  let index = 2;
+
+  while (usedCodes.has(code)) {
+    code = `${base}-${index}`;
+    index += 1;
+  }
+
+  usedCodes.add(code);
+  return code;
+}
+
+function parseSkuList(value: string) {
+  return value
+    .split(/[\n,;]+/g)
+    .map((sku) => sku.trim())
+    .filter(Boolean);
 }
 
 function screenPaths(raw: string) {
@@ -815,7 +877,42 @@ function removeSkuFromScreenOrder(
   }
 }
 
-function applyAdminProducts(baseCatalog: Catalog, adminProducts: AdminProduct[]) {
+function addScreenToScreenOrder(
+  screenOrder: Map<string, ScreenButton[]>,
+  knownScreenKeys: Set<string>,
+  parentKey: string,
+  screenKey: string,
+  label: string,
+) {
+  const parentParts = screenKeyParts(parentKey);
+  const screenParts = screenKeyParts(screenKey);
+  const normalizedParent = parentParts.join("/");
+  const normalizedScreen = screenParts.join("/");
+  const buttons = screenOrder.get(normalizedParent) ?? [];
+
+  pushUnique(
+    buttons,
+    {
+      kind: "screen",
+      key: normalizedScreen,
+      label: normalizeName(label) || screenParts.at(-1) || "Unterbildschirm",
+    },
+    buttonKey,
+  );
+  screenOrder.set(normalizedParent, buttons);
+  if (!screenOrder.has(normalizedScreen)) {
+    screenOrder.set(normalizedScreen, []);
+  }
+  knownScreenKeys.add(normalizedParent);
+  knownScreenKeys.add(normalizedScreen);
+}
+
+function applyAdminProducts(
+  baseCatalog: Catalog,
+  adminProducts: AdminProduct[],
+  adminGroups: AdminProductGroup[],
+  adminScreens: AdminScreen[],
+) {
   const products = [...baseCatalog.products];
   const productBySku = new Map(baseCatalog.productBySku);
   const groupsBySku = new Map(
@@ -831,6 +928,16 @@ function applyAdminProducts(baseCatalog: Catalog, adminProducts: AdminProduct[])
     ]),
   );
   const knownScreenKeys = new Set(baseCatalog.screenKeys);
+
+  for (const screen of adminScreens) {
+    addScreenToScreenOrder(
+      screenOrder,
+      knownScreenKeys,
+      screen.parentKey,
+      screen.key,
+      screen.name,
+    );
+  }
 
   for (const product of adminProducts) {
     const baseSku = product.baseSku ?? product.sku;
@@ -860,6 +967,32 @@ function applyAdminProducts(baseCatalog: Catalog, adminProducts: AdminProduct[])
       knownScreenKeys,
       screenKeyParts(product.screenKey),
       product.sku,
+    );
+  }
+
+  for (const group of adminGroups) {
+    const baseSku = group.baseSku ?? group.sku;
+    const validChildSkus = group.childSkus.filter((sku) => productBySku.has(sku));
+
+    if (group.source === "catalog") {
+      groupsBySku.delete(baseSku);
+      removeSkuFromScreenOrder(screenOrder, baseSku);
+    }
+
+    groupsBySku.delete(group.sku);
+    removeSkuFromScreenOrder(screenOrder, group.sku);
+    groupsBySku.set(group.sku, {
+      sku: group.sku,
+      name: group.name,
+      buttonName: group.buttonName || group.name,
+      color: group.color,
+      childSkus: validChildSkus,
+    });
+    addSkuToScreenOrder(
+      screenOrder,
+      knownScreenKeys,
+      screenKeyParts(group.screenKey),
+      group.sku,
     );
   }
 
@@ -1167,6 +1300,35 @@ function normalizeStoredAdminProducts(products: AdminProduct[]) {
   }));
 }
 
+function normalizeStoredAdminGroups(groups: AdminProductGroup[]) {
+  return groups.map((group) => ({
+    ...group,
+    id: group.id || `group-${Date.now().toString(36)}`,
+    sku: group.sku || `WG-${Date.now().toString(36).toUpperCase()}`,
+    name: normalizeName(group.name) || "Neue Warengruppe",
+    buttonName: normalizeName(group.buttonName) || normalizeName(group.name) || "Warengruppe",
+    color: group.color || "BLUE",
+    screenKey: group.screenKey || "Menü",
+    childSkus: Array.isArray(group.childSkus) ? group.childSkus : [],
+    createdAt: group.createdAt || new Date().toISOString(),
+    source: group.source ?? "custom",
+    baseSku: group.baseSku,
+  }));
+}
+
+function normalizeStoredAdminScreens(screens: AdminScreen[]) {
+  return screens.map((screen) => ({
+    ...screen,
+    id: screen.id || `screen-${Date.now().toString(36)}`,
+    parentKey: screen.parentKey || "Menü",
+    name: normalizeName(screen.name) || "Unterbildschirm",
+    key:
+      screen.key ||
+      composeTargetScreen(screen.parentKey || "Menü", screen.name || "Unterbildschirm"),
+    createdAt: screen.createdAt || new Date().toISOString(),
+  }));
+}
+
 function transactionPayments(transaction: Transaction) {
   if (Array.isArray(transaction.payments) && transaction.payments.length > 0) {
     return transaction.payments;
@@ -1187,7 +1349,11 @@ function detectDeviceInfo(): DeviceInfo {
   const nav = navigator as Navigator & { standalone?: boolean };
   const userAgent = nav.userAgent.toLowerCase();
   const touch = nav.maxTouchPoints > 0 || "ontouchstart" in window;
-  const iosTablet = /ipad/.test(userAgent) || (nav.platform === "MacIntel" && nav.maxTouchPoints > 1);
+  const appleMobile =
+    /iphone|ipad|ipod/.test(userAgent) ||
+    (nav.platform === "MacIntel" && nav.maxTouchPoints > 1);
+  const iosTablet =
+    /ipad/.test(userAgent) || (nav.platform === "MacIntel" && nav.maxTouchPoints > 1);
   const phone =
     /iphone|ipod|android.*mobile|windows phone/.test(userAgent) || minSide < 640;
   const tablet =
@@ -1209,6 +1375,7 @@ function detectDeviceInfo(): DeviceInfo {
           ? "Tablet"
           : "Desktop",
     touch,
+    appleMobile,
     standalone,
     orientation: width >= height ? "quer" : "hoch",
     width,
@@ -1485,6 +1652,12 @@ export default function Home() {
   const [adminProducts, setAdminProducts] = useState<AdminProduct[]>([]);
   const [adminProductsLoaded, setAdminProductsLoaded] = useState(false);
   const [adminDraft, setAdminDraft] = useState<AdminProductDraft>(DEFAULT_ADMIN_DRAFT);
+  const [adminGroups, setAdminGroups] = useState<AdminProductGroup[]>([]);
+  const [adminGroupsLoaded, setAdminGroupsLoaded] = useState(false);
+  const [adminGroupDraft, setAdminGroupDraft] =
+    useState<AdminGroupDraft>(DEFAULT_ADMIN_GROUP_DRAFT);
+  const [adminScreens, setAdminScreens] = useState<AdminScreen[]>([]);
+  const [adminScreensLoaded, setAdminScreensLoaded] = useState(false);
   const [discounts, setDiscounts] = useState<DiscountPreset[]>(DEFAULT_DISCOUNTS);
   const [discountsLoaded, setDiscountsLoaded] = useState(false);
   const [discountDraft, setDiscountDraft] =
@@ -1512,6 +1685,7 @@ export default function Home() {
   const [activeGroup, setActiveGroup] = useState<ProductGroup | null>(null);
   const [customDraft, setCustomDraft] = useState<CustomDraft | null>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [adminProductQuery, setAdminProductQuery] = useState("");
   const [selectedDiscountId, setSelectedDiscountId] = useState("");
   const [customDiscountValue, setCustomDiscountValue] = useState("");
@@ -1521,13 +1695,14 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [journalLoaded, setJournalLoaded] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<Transaction | null>(null);
-  const [mode, setMode] = useState<"sale" | "report" | "admin">("sale");
+  const [mode, setMode] = useState<CashMode>("sale");
   const [cashMenuOpen, setCashMenuOpen] = useState(false);
   const [notice, setNotice] = useState("Bitte Unternehmen anmelden");
   const [now, setNow] = useState<Date | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [installPrompt, setInstallPrompt] =
     useState<InstallPromptEvent | null>(null);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
   const activeTenant =
     tenants.find((tenant) => tenant.id === activeTenantId) ?? null;
   const isAdminPortal = portalArea === "admin";
@@ -1730,6 +1905,68 @@ export default function Home() {
   }, [activeTenant]);
 
   useEffect(() => {
+    async function loadAdminGroups() {
+      setAdminGroupsLoaded(false);
+      if (!activeTenant) {
+        setAdminGroups([]);
+        return;
+      }
+
+      await Promise.resolve();
+      const saved = readTenantStorage(STORAGE_ADMIN_GROUPS, activeTenant.id);
+
+      if (!saved) {
+        setAdminGroups([]);
+        setAdminGroupsLoaded(true);
+        return;
+      }
+
+      try {
+        setAdminGroups(
+          normalizeStoredAdminGroups(JSON.parse(saved) as AdminProductGroup[]),
+        );
+      } catch {
+        removeTenantStorage(STORAGE_ADMIN_GROUPS, activeTenant.id);
+      } finally {
+        setAdminGroupsLoaded(true);
+      }
+    }
+
+    loadAdminGroups();
+  }, [activeTenant]);
+
+  useEffect(() => {
+    async function loadAdminScreens() {
+      setAdminScreensLoaded(false);
+      if (!activeTenant) {
+        setAdminScreens([]);
+        return;
+      }
+
+      await Promise.resolve();
+      const saved = readTenantStorage(STORAGE_ADMIN_SCREENS, activeTenant.id);
+
+      if (!saved) {
+        setAdminScreens([]);
+        setAdminScreensLoaded(true);
+        return;
+      }
+
+      try {
+        setAdminScreens(
+          normalizeStoredAdminScreens(JSON.parse(saved) as AdminScreen[]),
+        );
+      } catch {
+        removeTenantStorage(STORAGE_ADMIN_SCREENS, activeTenant.id);
+      } finally {
+        setAdminScreensLoaded(true);
+      }
+    }
+
+    loadAdminScreens();
+  }, [activeTenant]);
+
+  useEffect(() => {
     async function loadReceiptConfig() {
       setReceiptConfigLoaded(false);
       if (!activeTenant) {
@@ -1882,6 +2119,28 @@ export default function Home() {
   }, [activeTenant, adminProductsLoaded, adminProducts]);
 
   useEffect(() => {
+    if (!adminGroupsLoaded || !activeTenant) {
+      return;
+    }
+
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_ADMIN_GROUPS, activeTenant.id),
+      JSON.stringify(adminGroups),
+    );
+  }, [activeTenant, adminGroupsLoaded, adminGroups]);
+
+  useEffect(() => {
+    if (!adminScreensLoaded || !activeTenant) {
+      return;
+    }
+
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_ADMIN_SCREENS, activeTenant.id),
+      JSON.stringify(adminScreens),
+    );
+  }, [activeTenant, adminScreensLoaded, adminScreens]);
+
+  useEffect(() => {
     if (!receiptConfigLoaded || !activeTenant) {
       return;
     }
@@ -1919,8 +2178,16 @@ export default function Home() {
   }, [activeTenant, usersLoaded, users, adminPassword]);
 
   const catalog = useMemo(
-    () => (baseCatalog ? applyAdminProducts(baseCatalog, adminProducts) : null),
-    [baseCatalog, adminProducts],
+    () =>
+      baseCatalog
+        ? applyAdminProducts(
+            baseCatalog,
+            adminProducts,
+            adminGroups,
+            adminScreens,
+          )
+        : null,
+    [adminGroups, adminProducts, adminScreens, baseCatalog],
   );
 
   const availableScreens = useMemo(() => {
@@ -1948,14 +2215,27 @@ export default function Home() {
   const canOpenReports = Boolean(
     activeUser?.active && activeUser.permissions.reports,
   );
+  const canOpenReceipts = Boolean(activeUser?.active);
   const editingProduct =
     adminProducts.find((product) => product.id === editingProductId) ?? null;
   const isEditingProduct = Boolean(editingProductId);
   const isCatalogProductEdit = Boolean(
     editingProduct?.source === "catalog" || editingProductId?.startsWith("catalog:"),
   );
+  const editingGroup =
+    adminGroups.find((group) => group.id === editingGroupId) ?? null;
+  const isEditingGroup = Boolean(editingGroupId);
+  const isCatalogGroupEdit = Boolean(
+    editingGroup?.source === "catalog" ||
+      editingGroupId?.startsWith("catalog-group:"),
+  );
   const selectedDiscount =
     discounts.find((discount) => discount.id === selectedDiscountId) ?? null;
+  const showInstallShortcut = Boolean(
+    deviceInfo &&
+      !deviceInfo.standalone &&
+      (installPrompt || deviceInfo.appleMobile || deviceInfo.touch),
+  );
 
   const managedProducts = useMemo(() => {
     if (!catalog) {
@@ -1995,6 +2275,34 @@ export default function Home() {
 
     return rows.slice(0, 80);
   }, [adminProductQuery, adminProducts, catalog]);
+
+  const managedAdminGroups = useMemo(() => {
+    if (!catalog) {
+      return [];
+    }
+
+    return [...catalog.groupsBySku.values()]
+      .sort((a, b) => a.buttonName.localeCompare(b.buttonName, "de"))
+      .map((group) => {
+        const adminGroup = adminGroups.find(
+          (item) =>
+            item.sku === group.sku ||
+            (item.source === "catalog" &&
+              (item.baseSku === group.sku || item.sku === group.sku)),
+        );
+        const screenKey = findProductScreenKey(catalog, group.sku);
+
+        return {
+          group,
+          adminGroup,
+          screenKey,
+          custom: Boolean(adminGroup && adminGroup.source !== "catalog"),
+          overridden: Boolean(adminGroup?.source === "catalog"),
+          linkedCount: group.childSkus.filter((sku) => catalog.productBySku.has(sku))
+            .length,
+        };
+      });
+  }, [adminGroups, catalog]);
 
   const currentButtons = useMemo(() => {
     if (!catalog) {
@@ -2181,6 +2489,14 @@ export default function Home() {
     window.localStorage.setItem(
       tenantStorageKey(STORAGE_ADMIN_PRODUCTS, tenant.id),
       JSON.stringify(createTenantSampleProducts()),
+    );
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_ADMIN_GROUPS, tenant.id),
+      JSON.stringify([]),
+    );
+    window.localStorage.setItem(
+      tenantStorageKey(STORAGE_ADMIN_SCREENS, tenant.id),
+      JSON.stringify([]),
     );
     window.localStorage.setItem(
       tenantStorageKey(STORAGE_DISCOUNTS, tenant.id),
@@ -2391,14 +2707,15 @@ export default function Home() {
     };
 
     setTransactions((items) => [...items, transaction]);
-    setLastReceipt(transaction);
     setCart([]);
     setSelectedDiscountId("");
     setCustomDiscountValue("");
     setTip("");
     setVoucherAmount("");
     setCashReceived("");
-    setNotice(`Bon ${transaction.id} abgeschlossen`);
+    setMode("sale");
+    setCashMenuOpen(false);
+    setNotice(`Bon ${transaction.id} abgeschlossen. Neuer Verkauf bereit`);
   }
 
   function importCatalog(event: ChangeEvent<HTMLInputElement>) {
@@ -2650,6 +2967,215 @@ export default function Home() {
     setNotice("Admin-Produkt entfernt");
   }
 
+  function startEditAdminGroup(group: ProductGroup) {
+    if (!catalog) {
+      return;
+    }
+
+    const existingAdminGroup =
+      adminGroups.find(
+        (item) =>
+          item.sku === group.sku ||
+          (item.source === "catalog" &&
+            (item.baseSku === group.sku || item.sku === group.sku)),
+      ) ?? null;
+    const editableGroup: AdminProductGroup =
+      existingAdminGroup ??
+      ({
+        ...group,
+        id: `catalog-group:${group.sku}`,
+        screenKey: findProductScreenKey(catalog, group.sku),
+        createdAt: new Date().toISOString(),
+        source: "catalog",
+        baseSku: group.sku,
+      } satisfies AdminProductGroup);
+
+    setEditingGroupId(editableGroup.id);
+    setAdminGroupDraft({
+      sku: editableGroup.sku,
+      name: editableGroup.name,
+      buttonName: editableGroup.buttonName,
+      color: editableGroup.color,
+      screenKey: editableGroup.screenKey,
+      childSkus: editableGroup.childSkus.join("\n"),
+    });
+    setNotice(`${editableGroup.buttonName} wird bearbeitet`);
+  }
+
+  function cancelAdminGroupEdit() {
+    setEditingGroupId(null);
+    setAdminGroupDraft(DEFAULT_ADMIN_GROUP_DRAFT);
+    setNotice("Warengruppen-Bearbeitung abgebrochen");
+  }
+
+  function addAdminGroup() {
+    if (!catalog) {
+      setNotice("Katalog ist noch nicht geladen");
+      return;
+    }
+
+    const existingGroup = editingGroup;
+    const catalogBaseSku =
+      existingGroup?.source === "catalog"
+        ? existingGroup.baseSku ?? existingGroup.sku
+        : editingGroupId?.startsWith("catalog-group:")
+          ? editingGroupId.slice("catalog-group:".length)
+          : "";
+    const name = normalizeName(adminGroupDraft.name);
+    const buttonName = normalizeName(adminGroupDraft.buttonName) || name;
+    const manualSku = adminGroupDraft.sku.trim().toUpperCase();
+    const usedCodes = new Set([
+      ...catalog.productBySku.keys(),
+      ...catalog.groupsBySku.keys(),
+      ...adminGroups
+        .filter((group) => group.id !== existingGroup?.id)
+        .map((group) => group.sku),
+    ]);
+    if (existingGroup?.sku) {
+      usedCodes.delete(existingGroup.sku);
+    }
+    if (catalogBaseSku) {
+      usedCodes.delete(catalogBaseSku);
+    }
+
+    const sku =
+      catalogBaseSku ||
+      manualSku ||
+      existingGroup?.sku ||
+      uniqueCode("WG", name, usedCodes);
+    const childSkus = parseSkuList(adminGroupDraft.childSkus);
+    const missingSkus = childSkus.filter((childSku) => !catalog.productBySku.has(childSku));
+
+    if (!name) {
+      setNotice("Bitte einen Namen fuer die Warengruppe eingeben");
+      return;
+    }
+
+    if (!catalogBaseSku && usedCodes.has(sku)) {
+      setNotice(`Code ${sku} ist bereits vorhanden`);
+      return;
+    }
+
+    const group: AdminProductGroup = {
+      id:
+        existingGroup?.id ??
+        (catalogBaseSku
+          ? `catalog-group:${catalogBaseSku}`
+          : `group-${Date.now().toString(36)}-${Math.random()
+              .toString(36)
+              .slice(2, 7)}`),
+      sku,
+      name,
+      buttonName,
+      color: adminGroupDraft.color,
+      screenKey: adminGroupDraft.screenKey || "Menü",
+      childSkus,
+      createdAt: existingGroup?.createdAt ?? new Date().toISOString(),
+      source: catalogBaseSku ? "catalog" : existingGroup?.source ?? "custom",
+      baseSku: catalogBaseSku || existingGroup?.baseSku,
+    };
+
+    if (existingGroup) {
+      setAdminGroups((items) =>
+        items.map((item) => (item.id === existingGroup.id ? group : item)),
+      );
+      setEditingGroupId(null);
+    } else {
+      setAdminGroups((items) => [...items, group]);
+    }
+    setAdminGroupDraft({
+      ...DEFAULT_ADMIN_GROUP_DRAFT,
+      screenKey: group.screenKey,
+    });
+    setCurrentScreen(group.screenKey);
+    setNotice(
+      missingSkus.length
+        ? `${group.buttonName} wurde gespeichert. ${missingSkus.length} SKU nicht gefunden`
+        : `${group.buttonName} wurde als Warengruppe gespeichert`,
+    );
+  }
+
+  function removeAdminGroup(id: string) {
+    setAdminGroups((items) => items.filter((group) => group.id !== id));
+    if (editingGroupId === id) {
+      setEditingGroupId(null);
+      setAdminGroupDraft(DEFAULT_ADMIN_GROUP_DRAFT);
+    }
+    setNotice("Warengruppe entfernt oder zurueckgesetzt");
+  }
+
+  function openManagerAdminSection(section: AdminSection, message: string) {
+    if (!activeUser?.permissions.admin && !isAdminPortal) {
+      setNotice("Nur Benutzer mit Adminrecht duerfen Schnellanlagen nutzen");
+      return;
+    }
+
+    setAdminUnlocked(true);
+    setAdminSection(section);
+    setMode("admin");
+    setCashMenuOpen(false);
+    setNotice(message);
+  }
+
+  function quickAddProduct() {
+    setAdminDraft({
+      ...DEFAULT_ADMIN_DRAFT,
+      screenKey: currentScreen || "Menü",
+    });
+    setEditingProductId(null);
+    openManagerAdminSection("products", "Produkt-Schnellanlage geoeffnet");
+  }
+
+  function quickAddProductGroup() {
+    setAdminGroupDraft({
+      ...DEFAULT_ADMIN_GROUP_DRAFT,
+      screenKey: currentScreen || "Menü",
+    });
+    setEditingGroupId(null);
+    openManagerAdminSection("groups", "Warengruppen-Schnellanlage geoeffnet");
+  }
+
+  function quickAddScreen() {
+    if (!activeUser?.permissions.admin && !isAdminPortal) {
+      setNotice("Nur Benutzer mit Adminrecht duerfen Unterbildschirme anlegen");
+      return;
+    }
+
+    const parentKey = currentScreen || "Menü";
+    const name = normalizeName(
+      window.prompt("Name des neuen Unterbildschirms") ?? "",
+    );
+
+    if (!name) {
+      return;
+    }
+
+    const key = composeTargetScreen(parentKey, name);
+
+    if (catalog?.screenKeys.includes(key) || adminScreens.some((screen) => screen.key === key)) {
+      setNotice(`${displayScreenKey(key)} existiert bereits`);
+      return;
+    }
+
+    setAdminScreens((items) => [
+      ...items,
+      {
+        id: `screen-${Date.now().toString(36)}-${Math.random()
+          .toString(36)
+          .slice(2, 7)}`,
+        parentKey,
+        name,
+        key,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    setCurrentScreen(parentKey);
+    setActiveGroup(null);
+    setQuery("");
+    setCashMenuOpen(false);
+    setNotice(`${name} wurde als Unterbildschirm angelegt`);
+  }
+
   function addDiscountPreset() {
     const name = normalizeName(discountDraft.name);
     const value = sanitizeAmount(discountDraft.value);
@@ -2881,12 +3407,15 @@ export default function Home() {
 
   async function installApp() {
     if (!installPrompt) {
+      setShowInstallHelp(true);
+      setNotice("Auf iPad/iPhone ueber Teilen > Zum Home-Bildschirm installieren");
       return;
     }
 
     await installPrompt.prompt();
     const choice = await installPrompt.userChoice;
     setInstallPrompt(null);
+    setShowInstallHelp(false);
     setNotice(
       choice.outcome === "accepted"
         ? "App-Installation gestartet"
@@ -3079,6 +3608,11 @@ export default function Home() {
         deviceInfo ? `device-${deviceInfo.kind}` : "device-unknown",
         deviceInfo ? `orientation-${deviceInfo.orientation}` : "orientation-unknown",
         activeTenant && activeUser && !isAdminPortal ? "cash-layout-active" : "",
+        activeTenant && activeUser && !isAdminPortal
+          ? cashMenuOpen
+            ? "cash-menu-open"
+            : "cash-menu-closed"
+          : "",
         deviceInfo?.touch ? "touch-device" : "pointer-device",
         deviceInfo?.standalone ? "installed-app" : "browser-app",
       ].join(" ")}
@@ -3217,7 +3751,15 @@ export default function Home() {
             <p className="eyebrow">
               {isAdminPortal
                 ? "Verwaltung"
-                : `${mode === "sale" ? "Verkauf" : "Tagesabschluss"} · ${
+                : `${
+                    mode === "sale"
+                      ? "Verkauf"
+                      : mode === "report"
+                        ? "Tagesabschluss"
+                        : mode === "receipts"
+                          ? "Bons"
+                          : "Admin"
+                  } · ${
                     activeUser?.username ?? "Kasse"
                   }`}
             </p>
@@ -3231,12 +3773,12 @@ export default function Home() {
         {!isAdminPortal ? (
           <button
             aria-expanded={cashMenuOpen}
-            aria-label={cashMenuOpen ? "Kopfbereich einklappen" : "Kopfbereich ausklappen"}
+            aria-label={cashMenuOpen ? "Kassenmenü einklappen" : "Kassenmenü ausklappen"}
             className="cash-menu-toggle"
             onClick={() => setCashMenuOpen((isOpen) => !isOpen)}
             type="button"
           >
-            {cashMenuOpen ? "Kopf einklappen" : "Kopf öffnen"}
+            {cashMenuOpen ? "Menü schließen" : "Menü öffnen"}
           </button>
         ) : null}
         {!isAdminPortal && activeUser ? (
@@ -3265,9 +3807,9 @@ export default function Home() {
                 } · ${deviceInfo.orientation}`
               : "Gerät wird erkannt"}
           </span>
-          {installPrompt && !deviceInfo?.standalone ? (
+          {showInstallShortcut ? (
             <button className="install-app-button" onClick={installApp} type="button">
-              App installieren
+              Als App nutzen
             </button>
           ) : null}
           {isAdminPortal ? (
@@ -3304,6 +3846,34 @@ export default function Home() {
             >
               Tagesabschluss
             </button>
+            <button
+              className={mode === "receipts" ? "active" : ""}
+              disabled={!canOpenReceipts}
+              onClick={() => {
+                setMode("receipts");
+                setCashMenuOpen(false);
+              }}
+              type="button"
+            >
+              Bons
+            </button>
+            {activeUser?.permissions.admin ? (
+              <>
+                <button className="quick-admin-action" onClick={quickAddProduct} type="button">
+                  + Produkt
+                </button>
+                <button
+                  className="quick-admin-action"
+                  onClick={quickAddProductGroup}
+                  type="button"
+                >
+                  + Warengruppe
+                </button>
+                <button className="quick-admin-action" onClick={quickAddScreen} type="button">
+                  + Unterbildschirm
+                </button>
+              </>
+            ) : null}
           </div>
         ) : null}
       </header>
@@ -3512,8 +4082,25 @@ export default function Home() {
                 ))}
               </div>
             </div>
+          </section>
+        ) : mode === "receipts" && !isAdminPortal ? (
+          <section className="report-area receipts-area" aria-label="Bons">
+            <div className="report-header">
+              <div>
+                <p className="eyebrow">Bonjournal</p>
+                <h2>Bons {todayKey().split("-").reverse().join(".")}</h2>
+              </div>
+              <div className="report-actions">
+                <button onClick={exportDailyReport} type="button">
+                  CSV
+                </button>
+                <button onClick={() => window.print()} type="button">
+                  Drucken
+                </button>
+              </div>
+            </div>
 
-            <div className="journal-list">
+            <div className="journal-list receipt-journal-list">
               {todaysTransactions.length === 0 ? (
                 <div className="empty-state">Noch keine Bons abgeschlossen</div>
               ) : (
@@ -3525,7 +4112,13 @@ export default function Home() {
                     type="button"
                   >
                     <span>{transaction.id}</span>
-                    <span>{new Date(transaction.completedAt).toLocaleTimeString("de-DE")}</span>
+                    <span>
+                      {new Date(transaction.completedAt).toLocaleTimeString("de-DE", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <span>{transaction.lines.length} Pos.</span>
                     <strong>{currency.format(transaction.total)}</strong>
                   </button>
                 ))
@@ -3569,13 +4162,13 @@ export default function Home() {
                     <p className="eyebrow">Admin</p>
                     <h2>
                       {canManageTenants
-                        ? "Produkte, Rabatte, Benutzer, Bons & Kassen"
-                        : "Produkte, Rabatte, Benutzer & Bons"}
+                        ? "Produkte, Warengruppen, Rabatte, Benutzer, Bons & Kassen"
+                        : "Produkte, Warengruppen, Rabatte, Benutzer & Bons"}
                     </h2>
                   </div>
                   <div className="admin-summary">
-                    {adminProducts.length} eigene Produkte · {discounts.length} Rabatte ·{" "}
-                    {users.length} Benutzer
+                    {adminProducts.length} eigene Produkte · {adminGroups.length} Warengruppen ·{" "}
+                    {discounts.length} Rabatte · {users.length} Benutzer
                     {canManageTenants ? ` · ${tenants.length} Kassen` : ""}
                   </div>
                 </div>
@@ -3830,6 +4423,196 @@ export default function Home() {
                         </div>
                       );
                     })
+                  )}
+                </div>
+              </div>
+            </div>
+
+                ) : null}
+
+                {activeAdminSection === "groups" ? (
+            <div className="admin-grid">
+              <div className="admin-block">
+                <h3>{isEditingGroup ? "Warengruppe bearbeiten" : "Warengruppe hinzufügen"}</h3>
+                <p className="admin-note">
+                  Warengruppen erscheinen als eigene Kachel im Verkaufsbereich.
+                  Artikel-SKUs kannst du sofort eintragen oder die Gruppe zuerst
+                  leer anlegen.
+                </p>
+                <div className="field-grid">
+                  <label>
+                    Code
+                    <input
+                      disabled={isCatalogGroupEdit}
+                      onChange={(event) =>
+                        setAdminGroupDraft({
+                          ...adminGroupDraft,
+                          sku: event.target.value,
+                        })
+                      }
+                      placeholder={
+                        isCatalogGroupEdit
+                          ? "Standard-Code bleibt erhalten"
+                          : isEditingGroup
+                            ? "leer = bisheriger Code"
+                            : "leer = automatisch"
+                      }
+                      value={adminGroupDraft.sku}
+                    />
+                  </label>
+                  <label>
+                    Name
+                    <input
+                      onChange={(event) =>
+                        setAdminGroupDraft({
+                          ...adminGroupDraft,
+                          name: event.target.value,
+                        })
+                      }
+                      placeholder="z. B. Saisonbecher"
+                      value={adminGroupDraft.name}
+                    />
+                  </label>
+                  <label>
+                    Kacheltext
+                    <input
+                      onChange={(event) =>
+                        setAdminGroupDraft({
+                          ...adminGroupDraft,
+                          buttonName: event.target.value,
+                        })
+                      }
+                      placeholder="leer = Name"
+                      value={adminGroupDraft.buttonName}
+                    />
+                  </label>
+                  <label>
+                    Anzeigeort
+                    <select
+                      onChange={(event) =>
+                        setAdminGroupDraft({
+                          ...adminGroupDraft,
+                          screenKey: event.target.value,
+                        })
+                      }
+                      value={adminGroupDraft.screenKey}
+                    >
+                      {availableScreens.map((key) => (
+                        <option key={key} value={key}>
+                          {displayScreenKey(key)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Farbe
+                    <select
+                      onChange={(event) =>
+                        setAdminGroupDraft({
+                          ...adminGroupDraft,
+                          color: event.target.value,
+                        })
+                      }
+                      value={adminGroupDraft.color}
+                    >
+                      {Object.keys(colorMap).map((color) => (
+                        <option key={color} value={color}>
+                          {color}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="wide-field">
+                    Verknuepfte Artikel-SKUs
+                    <textarea
+                      onChange={(event) =>
+                        setAdminGroupDraft({
+                          ...adminGroupDraft,
+                          childSkus: event.target.value,
+                        })
+                      }
+                      placeholder="z. B. EIS-001, EIS-002 oder jede SKU in eine neue Zeile"
+                      rows={5}
+                      value={adminGroupDraft.childSkus}
+                    />
+                  </label>
+                </div>
+                <div className="admin-target">
+                  Ziel: {displayScreenKey(adminGroupDraft.screenKey)}
+                </div>
+                <div className="admin-actions">
+                  <button className="admin-primary" onClick={addAdminGroup} type="button">
+                    {isEditingGroup ? "Änderungen speichern" : "Warengruppe speichern"}
+                  </button>
+                  {isEditingGroup ? (
+                    <button
+                      className="admin-secondary"
+                      onClick={cancelAdminGroupEdit}
+                      type="button"
+                    >
+                      Abbrechen
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="admin-block">
+                <h3>Warengruppen verwalten</h3>
+                <div className="admin-list">
+                  {managedAdminGroups.length === 0 ? (
+                    <div className="empty-state">Noch keine eigenen Warengruppen angelegt</div>
+                  ) : (
+                    managedAdminGroups.map(
+                      ({ group, adminGroup, custom, overridden, screenKey, linkedCount }) => (
+                      <div
+                        className={`admin-row ${
+                          editingGroupId === adminGroup?.id ||
+                          editingGroupId === `catalog-group:${group.sku}`
+                            ? "editing"
+                            : ""
+                        }`}
+                        key={adminGroup?.id ?? group.sku}
+                      >
+                        <div>
+                          <strong>{group.buttonName}</strong>
+                          <span>
+                            {group.sku} · {displayScreenKey(screenKey)} ·{" "}
+                            {linkedCount} von {group.childSkus.length} Artikeln ·{" "}
+                            {custom
+                              ? "eigene Warengruppe"
+                              : overridden
+                                ? "angepasste Standardwarengruppe"
+                                : "Standardwarengruppe"}
+                          </span>
+                        </div>
+                        <div className="admin-row-actions">
+                          <button
+                            onClick={() => startEditAdminGroup(group)}
+                            type="button"
+                          >
+                            Bearbeiten
+                          </button>
+                          {custom && adminGroup ? (
+                            <button
+                              className="danger"
+                              onClick={() => removeAdminGroup(adminGroup.id)}
+                              type="button"
+                            >
+                              Löschen
+                            </button>
+                          ) : null}
+                          {overridden && adminGroup ? (
+                            <button
+                              className="danger"
+                              onClick={() => removeAdminGroup(adminGroup.id)}
+                              type="button"
+                            >
+                              Zurücksetzen
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
@@ -4905,19 +5688,65 @@ export default function Home() {
               <button className="admin-secondary" onClick={logoutTenant} type="button">
                 Unternehmen wechseln
               </button>
-              {installPrompt && !deviceInfo?.standalone ? (
+              {showInstallShortcut ? (
                 <button
                   className="admin-secondary"
                   onClick={installApp}
                   type="button"
                 >
-                  App installieren
+                  Als Bildschirm-App nutzen
                 </button>
               ) : null}
             </div>
           </div>
         </section>
       )}
+      {showInstallShortcut ? (
+        <button
+          className="install-floating-button"
+          onClick={installApp}
+          type="button"
+        >
+          Als Bildschirm-App nutzen
+        </button>
+      ) : null}
+      {showInstallHelp ? (
+        <div className="install-help-backdrop" role="dialog" aria-modal="true">
+          <div className="install-help-card">
+            <button
+              aria-label="Hinweis schließen"
+              className="install-help-close"
+              onClick={() => setShowInstallHelp(false)}
+              type="button"
+            >
+              ×
+            </button>
+            <Image
+              alt=""
+              aria-hidden="true"
+              height={72}
+              src="/icons/icon-192.png"
+              width={72}
+            />
+            <div>
+              <p className="eyebrow">Bildschirm-App</p>
+              <h2>Zum Home-Bildschirm hinzufügen</h2>
+              <p>
+                Öffne auf dem iPad oder iPhone das Teilen-Symbol und wähle
+                danach „Zum Home-Bildschirm“. Danach startet die Kasse wie eine
+                eigene App ohne Browser-Adressleiste.
+              </p>
+            </div>
+            <button
+              className="admin-primary"
+              onClick={() => setShowInstallHelp(false)}
+              type="button"
+            >
+              Verstanden
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

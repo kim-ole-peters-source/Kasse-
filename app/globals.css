@@ -1,23 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f1f3f6;
-  --foreground: #171717;
-  --muted: #6f7580;
-  --line: #d9dee6;
+  --background: #eef0f5;
+  --foreground: #20242b;
+  --muted: #737987;
+  --line: #d2d8e3;
   --panel: #ffffff;
-  --panel-soft: #f7f8fb;
-  --primary: #171717;
-  --primary-strong: #000000;
-  --accent: #f0b95d;
-  --accent-coral: #d86a61;
-  --accent-blue: #8da1bb;
-  --surface-tint: #edf0f5;
-  --success: #0a8f49;
-  --danger: #d43148;
+  --panel-soft: #f5f7fb;
+  --primary: #3f24ff;
+  --primary-strong: #2713cc;
+  --accent: #efb156;
+  --accent-coral: #d4835c;
+  --accent-blue: #6d9dcc;
+  --surface-tint: #e5e8ef;
+  --success: #07a53d;
+  --danger: #e30032;
   --warning: #f2a234;
-  --shadow: 0 18px 44px rgba(20, 28, 38, 0.11);
-  --shadow-soft: 0 8px 22px rgba(20, 28, 38, 0.08);
+  --shadow: 0 8px 22px rgba(26, 34, 48, 0.08);
+  --shadow-soft: 0 5px 14px rgba(26, 34, 48, 0.12);
   --radius: 8px;
   --touch: 48px;
 }
@@ -40,7 +40,7 @@ body {
 
 body {
   background:
-    linear-gradient(180deg, #f7f8fb 0%, var(--background) 240px),
+    linear-gradient(180deg, #f7f8fb 0%, var(--background) 260px),
     var(--background);
   color: var(--foreground);
   font-family:
@@ -71,6 +71,17 @@ button:disabled {
   opacity: 0.48;
 }
 
+input::placeholder {
+  color: #9aa1ad;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(63, 36, 255, 0.22);
+  outline-offset: 2px;
+}
+
 .pos-shell {
   min-height: 100vh;
   min-height: 100dvh;
@@ -92,8 +103,8 @@ button:disabled {
 .portal-screen {
   align-items: center;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(36, 71, 245, 0.08)),
-    #f4f6fa;
+    linear-gradient(180deg, rgba(63, 36, 255, 0.06), rgba(63, 36, 255, 0.02)),
+    #eef0f5;
   display: flex;
   justify-content: center;
   min-height: calc(100vh - 28px);
@@ -173,7 +184,7 @@ button:disabled {
 .portal-area-grid button.active {
   background: var(--primary);
   border-color: var(--primary);
-  box-shadow: 0 10px 24px rgba(36, 71, 245, 0.2);
+  box-shadow: 0 8px 18px rgba(63, 36, 255, 0.24);
   color: #ffffff;
 }
 
@@ -335,6 +346,73 @@ h3 {
   padding: 0 10px;
 }
 
+.install-floating-button {
+  background: var(--primary);
+  border: 1px solid var(--primary-strong);
+  border-radius: 8px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  box-shadow: 0 14px 32px rgba(63, 36, 255, 0.24);
+  color: #ffffff;
+  font-weight: 900;
+  min-height: 48px;
+  padding: 0 18px;
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 40;
+}
+
+.install-help-backdrop {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.55);
+  display: grid;
+  inset: 0;
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
+    max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  position: fixed;
+  z-index: 70;
+}
+
+.install-help-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.25);
+  display: grid;
+  gap: 14px;
+  justify-self: center;
+  max-width: 460px;
+  padding: 24px;
+  position: relative;
+  width: 100%;
+}
+
+.install-help-card img {
+  background: #000000;
+  border-radius: 8px;
+  height: 72px;
+  object-fit: contain;
+  padding: 6px;
+  width: 72px;
+}
+
+.install-help-card p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.install-help-close {
+  background: #f4f6fa;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 20px;
+  height: 38px;
+  line-height: 1;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 38px;
+}
+
 .user-switch {
   align-items: center;
   display: flex;
@@ -412,7 +490,7 @@ h3 {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9), var(--shadow);
 }
 
 .screen-rail {
@@ -431,7 +509,7 @@ h3 {
 
 .screen-pill {
   align-items: center;
-  background: var(--panel-soft);
+  background: #f8f9fc;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--foreground);
@@ -442,10 +520,10 @@ h3 {
 }
 
 .screen-pill.active {
-  background: #e9eeff;
+  background: #ebe9ff;
   border-color: var(--primary);
   color: var(--primary-strong);
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .rail-footer {
@@ -544,6 +622,7 @@ h3 {
 .adjustments select,
 .field-grid input,
 .field-grid select,
+.field-grid textarea,
 .login-password input,
 .admin-lock input,
 .admin-password-box input,
@@ -552,12 +631,29 @@ h3 {
 .user-pin-field input,
 .modal input {
   background: #ffffff;
-  border: 1px solid var(--line);
+  border: 1.5px solid #c5ccd8;
   border-radius: 8px;
   color: var(--foreground);
+  font-weight: 800;
   min-height: 42px;
   padding: 0 12px;
   width: 100%;
+}
+
+.search-box input:focus,
+.adjustments input:focus,
+.adjustments select:focus,
+.field-grid input:focus,
+.field-grid select:focus,
+.field-grid textarea:focus,
+.login-password input:focus,
+.admin-lock input:focus,
+.admin-password-box input:focus,
+.split-inputs input:focus,
+.cash-input input:focus,
+.user-pin-field input:focus,
+.modal input:focus {
+  border-color: var(--primary);
 }
 
 .product-grid {
@@ -569,10 +665,10 @@ h3 {
 
 .product-button {
   --tile-color: var(--primary);
-  --tile-text: #ffffff;
+  --tile-text: #20242b;
   align-items: flex-start;
-  background: color-mix(in srgb, var(--tile-color) 12%, #ffffff);
-  border: 1px solid color-mix(in srgb, var(--tile-color) 45%, #cfd7e3);
+  background: color-mix(in srgb, var(--tile-color) 10%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--tile-color) 38%, #cfd7e3);
   border-bottom: 6px solid var(--tile-color);
   border-radius: 8px;
   color: var(--foreground);
@@ -595,38 +691,38 @@ h3 {
 
 .product-button:hover {
   border-color: var(--tile-color);
-  box-shadow: 0 10px 22px rgba(23, 33, 52, 0.11);
+  box-shadow: 0 7px 16px rgba(23, 33, 52, 0.12);
   transform: translateY(-1px);
 }
 
 .product-button.filled {
-  background: var(--tile-color);
+  background: color-mix(in srgb, var(--tile-color) 20%, #ffffff);
   color: var(--tile-text);
 }
 
 .screen-button {
-  background: var(--tile-color);
-  border-color: color-mix(in srgb, var(--tile-color) 74%, #111111);
+  background: color-mix(in srgb, var(--tile-color) 22%, #ffffff);
+  border-color: color-mix(in srgb, var(--tile-color) 56%, #cfd7e3);
   color: var(--tile-text);
 }
 
 .group-button {
-  background: color-mix(in srgb, var(--tile-color) 86%, #ffffff);
-  border-color: color-mix(in srgb, var(--tile-color) 74%, #111111);
+  background: color-mix(in srgb, var(--tile-color) 18%, #ffffff);
+  border-color: color-mix(in srgb, var(--tile-color) 56%, #cfd7e3);
   color: var(--tile-text);
 }
 
 .button-main {
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 900;
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .button-meta {
-  color: color-mix(in srgb, currentColor 72%, transparent);
+  color: #5f6570;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .option-strip {
@@ -704,7 +800,7 @@ h3 {
 
 .cart-line {
   align-items: center;
-  background: var(--panel-soft);
+  background: #fbfcfe;
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
@@ -725,8 +821,9 @@ h3 {
 }
 
 .cart-line span {
-  color: var(--muted);
+  color: #7b828f;
   font-size: 12px;
+  font-weight: 700;
 }
 
 .qty-controls {
@@ -738,8 +835,9 @@ h3 {
 
 .qty-controls button {
   background: #ffffff;
-  border: 1px solid var(--line);
+  border: 1px solid #c8d0dc;
   border-radius: 7px;
+  color: #171b22;
   font-size: 18px;
   font-weight: 800;
   height: 32px;
@@ -777,10 +875,10 @@ h3 {
 .split-inputs label,
 .cash-input,
 .modal label {
-  color: var(--muted);
+  color: #5f6570;
   display: grid;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   gap: 6px;
 }
 
@@ -805,7 +903,8 @@ h3 {
 .totals span,
 .change-row span,
 .report-row span {
-  color: var(--muted);
+  color: #6b7280;
+  font-weight: 800;
 }
 
 .grand-total {
@@ -819,9 +918,10 @@ h3 {
 }
 
 .payment-plan {
-  background: #f7f9fc;
-  border: 1px solid var(--line);
+  background: #171717;
+  border: 1px solid #171717;
   border-radius: 8px;
+  color: #ffffff;
   display: grid;
   gap: 8px;
   padding: 12px;
@@ -833,9 +933,13 @@ h3 {
   justify-content: space-between;
 }
 
-.payment-plan span,
-.payment-note {
-  color: var(--muted);
+.payment-plan span {
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 800;
+}
+
+.payment-plan strong {
+  color: #ffffff;
 }
 
 .split-inputs {
@@ -866,6 +970,7 @@ h3 {
   background: #fff7e8;
   border: 1px solid #f2cf92;
   border-radius: 8px;
+  color: #7a551c;
   font-size: 12px;
   font-weight: 800;
   padding: 10px;
@@ -974,6 +1079,17 @@ h3 {
 
 .field-wide {
   grid-column: 1 / -1;
+}
+
+.wide-field {
+  grid-column: 1 / -1;
+}
+
+.field-grid textarea {
+  line-height: 1.45;
+  min-height: 118px;
+  padding: 10px 12px;
+  resize: vertical;
 }
 
 .checkbox-field {
@@ -1357,10 +1473,26 @@ h3 {
   border-radius: 8px;
   display: grid;
   gap: 12px;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   min-height: 48px;
   padding: 0 12px;
   text-align: left;
+}
+
+.journal-entry span {
+  color: #5f6570;
+  font-weight: 800;
+}
+
+.journal-entry span:first-child,
+.journal-entry strong {
+  color: var(--foreground);
+  font-weight: 900;
+}
+
+.receipt-journal-list {
+  min-height: 0;
+  overflow: auto;
 }
 
 .modal-backdrop {
@@ -1664,6 +1796,10 @@ h3 {
 }
 
 @media (display-mode: standalone) {
+  .install-floating-button {
+    display: none;
+  }
+
   .topbar {
     position: sticky;
     top: env(safe-area-inset-top);
@@ -1973,6 +2109,7 @@ h3 {
 .adjustments select,
 .field-grid input,
 .field-grid select,
+.field-grid textarea,
 .login-password input,
 .admin-lock input,
 .admin-password-box input,
@@ -1989,6 +2126,7 @@ h3 {
 .adjustments select:focus,
 .field-grid input:focus,
 .field-grid select:focus,
+.field-grid textarea:focus,
 .login-password input:focus,
 .admin-lock input:focus,
 .admin-password-box input:focus,
@@ -2058,14 +2196,17 @@ h3 {
 
 .product-button.filled {
   background: color-mix(in srgb, var(--tile-color) 18%, white);
+  color: #20242b;
 }
 
 .screen-button {
-  background: #f4f6fa;
+  background: color-mix(in srgb, var(--tile-color) 16%, #ffffff);
+  color: #20242b;
 }
 
 .group-button {
-  background: #fffaf1;
+  background: color-mix(in srgb, var(--tile-color) 14%, #ffffff);
+  color: #20242b;
 }
 
 .button-main {
@@ -2518,11 +2659,34 @@ h3 {
   max-height: 100dvh;
   overflow: hidden;
   padding: 8px;
+  position: relative;
 }
 
 .cash-layout-active .cash-topbar {
   position: relative;
   top: auto;
+}
+
+.cash-layout-active.cash-menu-closed {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.cash-layout-active.cash-menu-closed .cash-topbar {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  display: inline-flex;
+  gap: 0;
+  left: max(8px, env(safe-area-inset-left));
+  padding: 0;
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  width: auto;
+  z-index: 30;
+}
+
+.cash-layout-active.cash-menu-closed .workspace {
+  grid-row: 1;
 }
 
 .cash-topbar .topbar-brand {
@@ -2577,33 +2741,27 @@ h3 {
   content: "^";
 }
 
-.cash-topbar-closed {
-  box-shadow: var(--shadow-soft);
-  padding: 4px 6px;
-}
-
+.cash-topbar-closed,
 .cash-topbar-closed .topbar-logo,
-.cash-topbar-closed h1 {
+.cash-topbar-closed h1,
+.cash-topbar-closed .topbar-brand,
+.cash-topbar-closed .cash-user-chip {
   display: none;
-}
-
-.cash-topbar-closed .topbar-brand {
-  align-items: center;
-  border-left: 5px solid var(--primary);
-  min-height: 34px;
-  padding-left: 9px;
-}
-
-.cash-topbar-closed .eyebrow {
-  color: var(--foreground);
-  font-size: 12px;
-  font-weight: 900;
-  margin: 0;
 }
 
 .cash-topbar-closed .cash-menu-toggle,
 .cash-topbar-closed .cash-user-chip {
   min-height: 34px;
+}
+
+.cash-layout-active.cash-menu-closed .cash-topbar-closed {
+  display: inline-flex;
+}
+
+.cash-layout-active.cash-menu-closed .cash-menu-toggle {
+  box-shadow: var(--shadow-soft);
+  min-height: 38px;
+  padding: 0 12px;
 }
 
 .cash-topbar-open {
@@ -2668,6 +2826,16 @@ h3 {
 .cash-topbar .mode-tabs button {
   font-weight: 900;
   min-height: 36px;
+}
+
+.cash-topbar .mode-tabs .quick-admin-action {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  color: #20242b;
+}
+
+.cash-topbar .mode-tabs .quick-admin-action:hover {
+  border-color: var(--primary);
 }
 
 .cash-topbar + .workspace {
@@ -2796,6 +2964,217 @@ h3 {
 @media (orientation: landscape) {
   body {
     overflow: hidden;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 1220px) {
+  .cash-layout-active {
+    gap: 5px;
+    padding: 6px;
+  }
+
+  .cash-layout-active.cash-menu-closed .cash-topbar {
+    left: max(6px, env(safe-area-inset-left));
+    top: max(6px, env(safe-area-inset-top));
+  }
+
+  .cash-topbar {
+    gap: 6px;
+    padding: 6px 7px;
+  }
+
+  .cash-topbar h1 {
+    font-size: 16px;
+  }
+
+  .cash-menu-toggle,
+  .cash-user-chip {
+    min-height: 36px;
+  }
+
+  .cash-user-chip span {
+    max-width: 74px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cash-topbar + .workspace {
+    gap: 6px;
+    grid-template-columns: 108px minmax(0, 1fr) minmax(292px, 318px);
+  }
+
+  .cash-topbar + .workspace .screen-rail,
+  .cash-topbar + .workspace .menu-area,
+  .cash-topbar + .workspace .cart-panel {
+    padding: 8px;
+  }
+
+  .cash-topbar + .workspace .rail-title,
+  .cash-topbar + .workspace .rail-footer,
+  .cash-topbar + .workspace .breadcrumb {
+    display: none;
+  }
+
+  .cash-topbar + .workspace .screen-pill {
+    font-size: 12px;
+    min-height: 38px;
+    padding: 0 7px;
+  }
+
+  .cash-topbar + .workspace .menu-toolbar {
+    gap: 7px;
+  }
+
+  .cash-topbar + .workspace .menu-toolbar h2 {
+    font-size: 18px;
+  }
+
+  .cash-topbar + .workspace .search-box {
+    min-width: 168px;
+  }
+
+  .cash-topbar + .workspace .sale-status-strip {
+    margin-top: 7px;
+  }
+
+  .cash-topbar + .workspace .sale-status-strip span {
+    font-size: 12px;
+    min-height: 32px;
+    padding: 4px 6px;
+  }
+
+  .cash-topbar + .workspace .product-grid,
+  .cash-topbar + .workspace .option-grid {
+    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    margin-top: 8px;
+  }
+
+  .cash-topbar + .workspace .product-button,
+  .touch-device .cash-topbar + .workspace .product-button {
+    min-height: 76px;
+    padding: 9px;
+  }
+
+  .cash-topbar + .workspace .button-main {
+    font-size: 15px;
+  }
+
+  .cash-topbar + .workspace .button-meta {
+    display: none;
+  }
+
+  .cash-topbar + .workspace .cart-header {
+    gap: 7px;
+  }
+
+  .cash-topbar + .workspace .cart-header .eyebrow {
+    display: none;
+  }
+
+  .cash-topbar + .workspace .cart-header h2 {
+    font-size: 21px;
+  }
+
+  .cash-topbar + .workspace .icon-action {
+    height: 36px;
+    width: 36px;
+  }
+
+  .cash-topbar + .workspace .cart-lines {
+    gap: 6px;
+    margin: 5px 0;
+  }
+
+  .cash-topbar + .workspace .cart-line {
+    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    padding: 6px;
+  }
+
+  .cash-topbar + .workspace .cart-line span {
+    display: none;
+  }
+
+  .cash-topbar + .workspace .qty-controls {
+    grid-template-columns: 32px 26px 32px;
+  }
+
+  .cash-topbar + .workspace .qty-controls button {
+    height: 32px;
+  }
+
+  .cash-topbar + .workspace .adjustments {
+    gap: 5px;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cash-topbar + .workspace .adjustments label,
+  .cash-topbar + .workspace .split-inputs label,
+  .cash-topbar + .workspace .cash-input {
+    font-size: 11px;
+    gap: 3px;
+  }
+
+  .cash-topbar + .workspace .search-box input,
+  .cash-topbar + .workspace .adjustments input,
+  .cash-topbar + .workspace .adjustments select,
+  .cash-topbar + .workspace .split-inputs input,
+  .cash-topbar + .workspace .cash-input input {
+    min-height: 36px;
+    padding: 0 8px;
+  }
+
+  .cash-topbar + .workspace .totals {
+    font-size: 12px;
+    gap: 0;
+    margin: 5px 0;
+    padding: 6px 8px;
+  }
+
+  .cash-topbar + .workspace .totals div:not(.grand-total) {
+    display: none;
+  }
+
+  .cash-topbar + .workspace .grand-total {
+    border-top: 0;
+    font-size: 15px;
+    margin: 0;
+    padding-top: 0;
+  }
+
+  .cash-topbar + .workspace .payment-box {
+    gap: 5px;
+  }
+
+  .cash-topbar + .workspace .payment-plan {
+    gap: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 6px 8px;
+  }
+
+  .cash-topbar + .workspace .split-inputs {
+    gap: 5px;
+  }
+
+  .cash-topbar + .workspace .cash-input button {
+    min-height: 32px;
+    padding: 0 8px;
+  }
+
+  .cash-topbar + .workspace .payment-note {
+    padding: 6px 8px;
+  }
+
+  .cash-topbar + .workspace .change-row {
+    font-size: 13px;
+    min-height: 24px;
+  }
+
+  .cash-topbar + .workspace .complete-button {
+    font-size: 14px;
+    min-height: 42px;
   }
 }
 
